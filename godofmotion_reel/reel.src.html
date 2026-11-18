@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>GodOfMotion — One Slash, Every Beat</title>
+<style>html,body{margin:0;background:#F4F3EF;overflow:hidden}canvas{display:block}</style></head>
+<body><canvas id="c" width="1920" height="1080"></canvas>
+<script>
+"use strict";
+const G = /*GLYPHS*/null;
+const W=1920,H=1080,CX=960,CY=540,TAU=Math.PI*2,D2R=Math.PI/180,LOOP=15;
+const HEX={bg:'#F4F3EF',ink:'#111113',red:'#E61919',gold:'#FFB800',blue:'#2546F0'};
+const RGB={};for(const k in HEX){const h=HEX[k];RGB[k]=[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
+const mixc=(a,b,p)=>{a=RGB[a]||a;b=RGB[b]||b;p=clamp(p);return `rgb(${Math.round(a[0]+(b[0]-a[0])*p)},${Math.round(a[1]+(b[1]-a[1])*p)},${Math.round(a[2]+(b[2]-a[2])*p)})`;};
+const shade=(k,s)=>mixc(k,[0,0,0],s);
+
+/* ---------------- time functions (pure) ---------------- */
+function clamp(x,a=0,b=1){return x<a?a:x>b?b:x;}
+const lerp=(a,b,t)=>a+(b-a)*t;
+const seg=(t,a,b)=>clamp((t-a)/(b-a));
+const E10=1-Math.pow(2,-10);
+const eOut=p=>p<=0?0:p>=1?1:(1-Math.pow(2,-10*p))/E10;
+const eIn=p=>p<=0?0:p>=1?1:(Math.pow(2,10*p-10)-Math.pow(2,-10))/E10;
+const eIO=p=>p<.5?eIn(2*p)/2:.5+eOut(2*p-1)/2;
+// critically damped spring, normalised to land exactly on 1 (no overshoot -> no bounce)
+function spring(p,w=9){if(p<=0)return 0;if(p>=1)return 1;return (1-(1+w*p)*Math.exp(-w*p))/(1-(1+w)*Math.exp(-w));}
+const sp=(t,a,b,w)=>spring(seg(t,a,b),w);
+const rnd=n=>{const x=Math.sin(n*12.9898+78.233)*43758.5453;return x-Math.floor(x);};
+const lerp2=(a,b,t)=>[lerp(a[0],b[0],t),lerp(a[1],b[1],t)];
+
+/* ---------------- type ---------------- */
+const PC={black:{},bold:{}};
+function gp(f,ch){let p=PC[f][ch];if(!p){const g=G[f].g[ch]||G[f].g[' '];p=new Path2D(g.d);PC[f][ch]=p;}return p;}
+const gadv=(f,ch)=>(G[f].g[ch]||G[f].g[' ']).adv;
+function measure(f,s,tr=0){let w=0;for(let i=0;i<s.length;i++){w+=gadv(f,s[i]);if(i<s.length-1)w+=tr;}return w;}
+const CAP=0.7275390625;
+// returns Path2D in px around (0,0)=baseline/anchor
+function tpath(f,s,size,o={}){
+  const tr=o.track||0,sx=o.sx||1,sy=o.sy||1,sk=-Math.tan(o.skew||0);
+  const w=measure(f,s,tr);let cx=-w*(o.align||0);
+  const P=new Path2D();
+  for(const ch of s){P.addPath(gp(f,ch),new DOMMatrix([size*sx,0,sk*size*sy,size*sy,size*sx*cx,0]));cx+=gadv(f,ch)+tr;}
+  return P;
+}
+function text(ctx,f,s,x,y,size,col,o={}){
+  const P=tpath(f,s,size,o);ctx.save();ctx.translate(x,y);ctx.fillStyle=col;ctx.fill(P);
+  if(o.comp>0.3){ctx.strokeStyle=col;ctx.lineWidth=o.comp;ctx.lineJoin='miter';ctx.miterLimit=3;ctx.stroke(P);}
+  ctx.restore();
+}
+// giant stretched word: per-letter transforms
+function bigLayout(word,cap,baseY,maxW){
+  const em=cap/CAP;const nat=measure('black',word,-0.02)*em;const sx=Math.min(1,maxW/nat);
+  const tot=nat*sx;let x=CX-tot/2;const out=[];
+  for(const ch of word){const g=G.black.g[ch];const a=g.adv*em*sx;
+    out.push({ch,cx:x+((g.bb[0]+g.bb[2])/2)*em*sx,base:baseY,ex:em*sx,ey:em,comp:(1-sx)*58});x+=a-0.02*em*sx;}
+  return out;
+}
+function drawLetter(ctx,L,col,dx=0,dy=0){
+  const g=G.black.g[L.ch];const gcx=(g.bb[0]+g.bb[2])/2;
+  const P=new Path2D();P.addPath(gp('black',L.ch),new DOMMatrix([L.ex,0,0,L.ey,L.cx+dx-gcx*L.ex,L.base+dy]));
+  ctx.fillStyle=col;ctx.fill(P);
+  if(L.comp>0.3){ctx.strokeStyle=col;ctx.lineWidth=L.comp;ctx.lineJoin='miter';ctx.miterLimit=3;ctx.stroke(P);}
+}
+const drawWord=(ctx,lay,col,dx=0,dy=0)=>{for(const L of lay)drawLetter(ctx,L,col,dx,dy);};
+
+/* ---------------- geometry helpers ---------------- */
+function poly(ctx,pts){ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0],pts[i][1]);ctx.closePath();}
+function fillPoly(ctx,pts,col){poly(ctx,pts);ctx.fillStyle=col;ctx.fill();}
+function slashQuad(cx,cy,w,h,lean,rot){
+  const k=Math.tan(lean),c=Math.cos(rot),s=Math.sin(rot);
+  return [[-w/2+k*h/2,-h/2],[w/2+k*h/2,-h/2],[w/2-k*h/2,h/2],[-w/2-k*h/2,h/2]].map(([x,y])=>[cx+x*c-y*s,cy+x*s+y*c]);
+}
+function area(p){let a=0;for(let i=0;i<p.length;i++){const q=p[(i+1)%p.length];a+=p[i][0]*q[1]-q[0]*p[i][1];}return a/2;}
+function centroid(p){let x=0,y=0;for(const q of p){x+=q[0];y+=q[1];}return [x/p.length,y/p.length];}
+function resample(p,N){
+  const L=[0];for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length];L.push(L[i]+Math.hypot(b[0]-a[0],b[1]-a[1]));}
+  const T=L[p.length],out=[];let j=0;
+  for(let k=0;k<N;k++){const d=k*T/N;while(L[j+1]<d)j++;const a=p[j],b=p[(j+1)%p.length];const u=(d-L[j])/((L[j+1]-L[j])||1);out.push([lerp(a[0],b[0],u),lerp(a[1],b[1],u)]);}
+  return out;
+}
+function prep(p,N=600){
+  if(area(p)<0)p=p.slice().reverse();
+  const r=resample(p,N);const c=centroid(r);let bi=0,bd=1e9;
+  r.forEach((q,i)=>{let d=Math.abs(Math.atan2(q[1]-c[1],q[0]-c[0])+Math.PI/2);if(d<bd){bd=d;bi=i;}});
+  return r.slice(bi).concat(r.slice(0,bi));
+}
+const NGON=(n,r,ph=-Math.PI/2)=>Array.from({length:n},(_,k)=>[r*Math.cos(ph+k*TAU/n),r*Math.sin(ph+k*TAU/n)]);
+const SHAPES=[
+  {col:'ink', pts:prep(NGON(96,98))},
+  {col:'red', pts:prep([[0,-100],[52,-8],[112,-72],[100,72],[-100,72],[-112,-72],[-52,-8]].map(([x,y])=>[x,y+8]))},
+  {col:'gold',pts:prep([[0,-112],[112,0],[0,112],[-112,0]])},
+  {col:'blue',pts:prep(NGON(5,108))},
+];
+// letter contours of B E A T (em units)
+const LETTERS='BEAT'.split('').map(ch=>{
+  const cs=G.black.g[ch].contours;let oi=0,oa=0;cs.forEach((c,i)=>{const a=Math.abs(area(c));if(a>oa){oa=a;oi=i;}});
+  return {outer:cs[oi],holes:cs.filter((_,i)=>i!==oi)};
+});
+
+/* ---------------- shared layout constants ---------------- */
+const LK={size:168,skew:11*D2R,lean:18*D2R,sw:62,sh:290,gap:52,base:CY+0.7275*168/2};
+const BAND_Y=[195,425,655,885],BAND_H=190;
+const RECT={x0:360,x1:1560,y0:380,y1:700};
+const SMALL=i=>({ch:'BEAT'[i],cx:CX+(i-1.5)*270,base:CY+0.7275*234/2,ex:234,ey:234,comp:0});
+const ROWC=i=>[CX+(i-1.5)*270,CY];
+const SR=300,SLN=8,SPITCH=75,STH=67;
+const SLAB=Array.from({length:SLN},(_,i)=>{const yc=-SR+SPITCH/2+SPITCH*i;return {yc,r:SR*Math.sqrt(1-(yc/SR)**2),col:['red','gold','blue','ink'][i%4]};});
+const SHAPE_SLABS=[[3,7],[0,4],[1,5],[2,6]];
+const RR=380; // orbit / equatorial ring radius
+const TR_SRC=[[146.5,189.5,'gold'],[189.5,232.5,'gold'],[235.5,256,'blue'],[256,276.5,'blue'],[279.5,285.2,'ink'],[285.2,290.8,'ink'],[290.8,296.5,'ink']];
+const TR_R=j=>175+29*j;
+const VAL={17:[.92,.6,.75,.45,.66,.38,.82],18:[.55,.88,.5,.7,.4,.62,.58],19:[.98,.72,.84,.92,.6,.8,.68]};
+const BARV=[1.0,.82,.9,.66,.52,.74,.44];
+const TRACKS=['KICK','SUB','BASS','SYNTH','PAD','ARP','HATS'];
+const ROWY=j=>CY+(j-3)*86, BX0=640, BMAX=1100;
+const RULER={x:640,y:880,len:1100};
+const PX=p=>240+p*206;
+// barcode layouts
+const NCH=48;
+const L2=(()=>{const ws=[6,10,16,24,34];let x=0;const r=[];for(let n=0;n<NCH;n++){const w=ws[Math.floor(rnd(n+3)*5)];r.push([x,w]);x+=w+10+rnd(n+101)*26;}
+  const T=x-(10+rnd(NCH+100)*26),s=1760/T;return r.map(([a,w])=>[80+a*s,80+(a+w)*s]);})();
+const L3=(()=>{let x=0;const r=[];for(let n=0;n<NCH;n++){const w=Math.max(3,(L2[n][1]-L2[n][0])*0.42);r.push([x,x+w]);x+=w+2.5;}const off=CX-(x-2.5)/2;return r.map(([a,b])=>[a+off,b+off]);})();
+const BLOCKCOL=['red','gold','blue','bg'];
+const BW={25:[.25,.25,.25,.25],26:[.44,.14,.28,.14],27:[.14,.30,.14,.42],28:[.25,.25,.25,.25]};
+
+/* ---------------- lockup ---------------- */
+function lockSlash(){return slashQuad(CX,CY,LK.sw,LK.sh,LK.lean,0);}
+function drawLockText(ctx,t,o,ol){
+  // o,ol: 0 = fully hidden inside slash, 1 = out at rest
+  const q=lockSlash();
+  const wG=measure('black','GodOf',-0.03)*LK.size, wM=measure('black','Motion',-0.03)*LK.size;
+  const travelG=wG+LK.gap+LK.sw, travelM=wM+LK.gap+LK.sw;
+  const gx=CX-LK.sw/2-LK.gap-wG+(1-o)*travelG, mx=CX+LK.sw/2+LK.gap-(1-o)*travelM;
+  const ext=(a,b,s)=>[a[0]+(a[0]-b[0])*s,a[1]+(a[1]-b[1])*s];
+  // clip left of slash left edge
+  ctx.save();const A=ext(q[0],q[3],8),B=ext(q[3],q[0],8);
+  poly(ctx,[A,B,[-4000,B[1]],[-4000,A[1]]]);ctx.clip();
+  text(ctx,'black','GodOf',gx,LK.base,LK.size,HEX.ink,{track:-0.03,skew:LK.skew});
+  const wl1=measure('bold','MOTION DESIGN',0.2)*22,wl2=measure('bold','REEL · 2026',0.2)*22;
+  text(ctx,'bold','MOTION DESIGN',CX-LK.sw/2-LK.gap-14+(1-ol)*(wl1+LK.gap+LK.sw+40),LK.base+58,22,HEX.ink,{track:0.2,align:1,skew:LK.skew});
+  ctx.restore();
+  ctx.save();const C=ext(q[1],q[2],8),D=ext(q[2],q[1],8);
+  poly(ctx,[C,D,[6000,D[1]],[6000,C[1]]]);ctx.clip();
+  text(ctx,'black','Motion',mx,LK.base,LK.size,HEX.red,{track:-0.03,skew:LK.skew});
+  text(ctx,'bold','REEL · 2026',CX+LK.sw/2+LK.gap+4-(1-ol)*(wl2+LK.gap+LK.sw+40),LK.base+58,22,HEX.ink,{track:0.2,skew:LK.skew});
+  ctx.restore();
+}
+
+/* ---------------- SCENE A: 0-2s lockup -> slash -> bars ---------------- */
+function sceneA(ctx,t){
+  if(t<1.0){
+    const s1=sp(t,0.1,0.5,8),s2=sp(t,0.5,0.98,9);
+    const w=lerp(lerp(LK.sw,420,s1),440,s2),h=lerp(LK.sh,2700,s1),lean=LK.lean*(1-s2),rot=lerp(lerp(0,36*D2R,s1),90*D2R,s2);
+    // tilt 18 -> lean+rot
+    fillPoly(ctx,slashQuad(CX,CY,w,h,lean,rot),HEX.red);
+    if(t<0.22){const o=1-eIn(seg(t,0.02,0.2)),ol=1-eIn(seg(t,0,0.16));drawLockText(ctx,t,o,ol);}
+    return;
+  }
+  const bars=barsA(t);for(const b of bars){ctx.fillStyle=HEX.red;ctx.fillRect(-60,b[0],W+120,b[1]-b[0]);}
+}
+function barsA(t){
+  const s3=sp(t,1.0,1.44,9);const out=[];
+  for(let i=0;i<4;i++){
+    const y=lerp(CY+(i-1.5)*110,BAND_Y[i],s3);let th=lerp(110,58,s3);
+    const s4=sp(t,1.5+i*0.035,1.5+i*0.035+0.4,9);th=lerp(th,BAND_H,s4);
+    out.push([y-th/2,y+th/2]);
+  }
+  return out;
+}
+
+/* ---------------- SCENE B: 2-4s kinetic type ---------------- */
+const WORDS_B=[{w:'ON',t:2.0},{w:'EVERY',t:2.5},{w:'BEAT',t:3.0}];
+function bandRects(t){
+  const c=sp(t,3.5,3.9,8);
+  return BAND_Y.map((y,i)=>({x0:lerp(-60,RECT.x0,c),x1:lerp(W+60,RECT.x1,c),y0:lerp(y-BAND_H/2,RECT.y0+i*80,c),y1:lerp(y+BAND_H/2,RECT.y0+(i+1)*80,c)}));
+}
+function layB(word,t){
+  const big=bigLayout(word,880,980,1760);
+  if(word!=='BEAT')return big;
+  const c=sp(t,3.5,3.92,8);
+  return big.map((L,i)=>{const S=SMALL(i);return {ch:L.ch,cx:lerp(L.cx,S.cx,c),base:lerp(L.base,S.base,c),ex:lerp(L.ex,S.ex,c),ey:lerp(L.ey,S.ey,c),comp:lerp(L.comp,0,c)};});
+}
+function sceneB(ctx,t){
+  const R=bandRects(t).map(r=>({x0:Math.round(r.x0),x1:Math.round(r.x1),y0:Math.round(r.y0),y1:Math.round(r.y1)}));
+  const cuts=[-100];R.forEach(r=>{cuts.push(r.y0,r.y1);});cuts.push(H+100);
+  let wi=0;for(let i=0;i<WORDS_B.length;i++)if(t>=WORDS_B[i].t)wi=i;
+  const cur=WORDS_B[wi],old=wi>0?WORDS_B[wi-1]:null;
+  const layC=layB(cur.w,t),layO=old?layB(old.w,t):null;
+  for(let j=0;j<cuts.length-1;j++){
+    const y0=cuts[j],y1=cuts[j+1];if(y1<=y0)continue;
+    const dir=j%2?1:-1,d=j*0.012;const e=eOut(seg(t,cur.t+d,cur.t+d+0.22));
+    const offN=dir*2400*(1-e),offO=offN-dir*2400;
+    ctx.save();ctx.beginPath();ctx.rect(-100,y0,W+200,y1-y0);ctx.clip();
+    if(j%2===1){drawWord(ctx,layC,HEX.ink,offN);if(layO)drawWord(ctx,layO,HEX.ink,offO);const r=R[(j-1)/2];ctx.beginPath();ctx.rect(r.x0,r.y0,r.x1-r.x0,r.y1-r.y0);ctx.clip();
+      ctx.fillStyle=HEX.red;ctx.fillRect(r.x0,r.y0,r.x1-r.x0,r.y1-r.y0);
+      drawWord(ctx,layC,'#FFFFFF',offN);if(layO)drawWord(ctx,layO,'#FFFFFF',offO);}
+    ctx.restore();
+  }
+}
+
+/* ---------------- SCENE C: 4-6s shape morphing ---------------- */
+function letterPolys(i){ // B E A T at SMALL layout -> screen
+  const S=SMALL(i),g=G.black.g[S.ch],gcx=(g.bb[0]+g.bb[2])/2;
+  const tf=p=>[S.cx+(p[0]-gcx)*S.ex,S.base+p[1]*S.ey];
+  return {outer:prep(LETTERS[i].outer.map(tf)),holes:LETTERS[i].holes.map(h=>h.map(tf))};
+}
+const LP=[0,1,2,3].map(letterPolys);
+function ringCurl(t){ // line (beat 9) curls into ring (beat 10)
+  const cu=sp(t,4.5,4.95,8);const Th=TAU*cu,L=lerp(1200,TAU*RR,cu),M=[CX,lerp(CY,CY+RR,cu)];
+  const k=Th/L,pts=[];const N=180;
+  for(let n=0;n<=N;n++){const s=-L/2+L*n/N;if(k<1e-6)pts.push([M[0]+s,M[1]]);else pts.push([M[0]+Math.sin(k*s)/k,M[1]-(1-Math.cos(k*s))/k]);}
+  return pts;
+}
+function strokePts(ctx,pts,col,lw,closed=false){ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0],pts[i][1]);if(closed)ctx.closePath();ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.lineCap='butt';ctx.lineJoin='round';ctx.stroke();}
+function orbitAlpha(t){return 45*D2R*sp(t,4.5,4.95,8)+90*D2R*sp(t,5.0,5.45,8)+50*D2R*eIO(seg(t,5.5,5.95));}
+function slabRect(i){const s=SLAB[i];return prep([[-s.r,-STH/2],[s.r,-STH/2],[s.r,STH/2],[-s.r,STH/2]].flatMap((p,k,a)=>{const q=a[(k+1)%4];return Array.from({length:10},(_,m)=>lerp2(p,q,m/10));}));}
+const SLABPOLY=SLAB.map((_,i)=>slabRect(i));
+function drawRing(ctx,e,psi,half,col,lw,ticks){ // half: 0 all, -1 back, +1 front
+  ctx.save();ctx.translate(CX,CY);ctx.rotate(psi);
+  const N=200,pts=[];
+  const inHalf=a=>half===0||(half<0?Math.sin(a)<=0:Math.sin(a)>=0);
+  ctx.beginPath();let pen=false;
+  for(let n=0;n<=N;n++){const a=n/N*TAU;if(!inHalf(a)&&!(half!==0&&Math.abs(Math.sin(a))<1e-9)){pen=false;continue;}
+    const x=RR*Math.cos(a),y=RR*Math.sin(a)*e;if(!pen){ctx.moveTo(x,y);pen=true;}else ctx.lineTo(x,y);}
+  ctx.strokeStyle=HEX[col];ctx.lineWidth=lw;ctx.lineCap='butt';ctx.stroke();
+  if(ticks&&ticks.len>0.5){ctx.beginPath();
+    for(let k=0;k<48;k++){const a=k*TAU/48+ticks.yaw;const aa=((a%TAU)+TAU)%TAU;if(!inHalf(aa))continue;
+      const L=ticks.len*(k%4===0?1.8:1),r0=RR+6,r1=r0+L;
+      ctx.moveTo(r0*Math.cos(a),r0*Math.sin(a)*e);ctx.lineTo(r1*Math.cos(a),r1*Math.sin(a)*e);}
+    ctx.strokeStyle=HEX.ink;ctx.lineWidth=3;ctx.stroke();}
+  ctx.restore();
+}
+function sceneC(ctx,t){
+  // red rect collapses into a line, line curls into ring
+  if(t<4.5){const r=eIn(seg(t,4.0,4.22));const y0=lerp(RECT.y0,CY-2.5,r),y1=lerp(RECT.y1,CY+2.5,r);
+    ctx.fillStyle=HEX.red;ctx.fillRect(RECT.x0,y0,RECT.x1-RECT.x0,y1-y0);}
+  const q12=eIO(seg(t,5.5,5.95));
+  if(t>=4.5&&t<5.5)strokePts(ctx,ringCurl(t),HEX.red,5);
+  if(t>=5.5)drawRing(ctx,1-q12,0,0,'red',5);
+  const m=sp(t,4.0,4.42,8),q10=sp(t,4.5,4.95,8),al=orbitAlpha(t);
+  for(let i=0;i<4;i++){
+    const Sh=SHAPES[i];
+    if(t<4.5){ // letter -> shape morph in place
+      const c=ROWC(i);const src=LP[i];
+      const pts=src.outer.map((p,k)=>[lerp(p[0],c[0]+Sh.pts[k][0],m),lerp(p[1],c[1]+Sh.pts[k][1],m)]);
+      poly(ctx,pts);const hp=clamp(m*1.7);
+      for(const h of src.holes){const hc=centroid(h);ctx.moveTo(lerp(h[0][0],hc[0],hp),lerp(h[0][1],hc[1],hp));for(const p of h)ctx.lineTo(lerp(p[0],hc[0],hp),lerp(p[1],hc[1],hp));ctx.closePath();}
+      ctx.fillStyle=mixc([255,255,255],Sh.col,m);ctx.fill('evenodd');continue;
+    }
+    const a=Math.PI+i*Math.PI/2+al;
+    const O=[CX+RR*Math.cos(a),CY+RR*Math.sin(a)];
+    const pos=lerp2(ROWC(i),O,q10);
+    const sc=lerp(1,0.82,q10);
+    const th=(i%2?1:-1)*al*0.5;
+    for(const si of (t<5.5?[SHAPE_SLABS[i][0]]:SHAPE_SLABS[i])){
+      const tgt=[CX,CY+SLAB[si].yc];const P=lerp2(pos,tgt,q12);const rot=th*(1-q12);const s=lerp(sc,1,q12);
+      const cr=Math.cos(rot),sr=Math.sin(rot);
+      const pts=Sh.pts.map((p,k)=>{const lx=lerp(p[0]*s,SLABPOLY[si][k][0],q12),ly=lerp(p[1]*s,SLABPOLY[si][k][1],q12);return [P[0]+lx*cr-ly*sr,P[1]+lx*sr+ly*cr];});
+      fillPoly(ctx,pts,HEX[Sh.col]);
+    }
+  }
+}
+
+/* ---------------- SCENE D: 6-8s 2D -> 3D sliced sphere ---------------- */
+function sphereParams(t){
+  const b13=sp(t,6.0,6.45,8),b14=sp(t,6.5,6.95,8),b15=sp(t,7.0,7.45,8),b16=sp(t,7.5,7.95,8);
+  return {phi:(28*b13+22*b15+40*b16)*D2R, psi:(-18*b13+34*b14-24*b15+8*b16)*D2R,
+    spc:1+.25*b13+.35*b14-.45*b15-.15*b16, yaw:(90*(b13+b14+b15+b16))*D2R, tick:22*b13};
+}
+function drawSlabs(ctx,P){
+  const cp=Math.cos(P.phi),sn=Math.sin(P.phi),sh=0.32*clamp(P.phi/(40*D2R)),rim=3*clamp(P.phi/(10*D2R));
+  ctx.save();ctx.translate(CX,CY);ctx.rotate(P.psi);
+  for(let i=SLN-1;i>=0;i--){const s=SLAB[i];const yc=s.yc*P.spc;const Yt=(yc-STH/2)*cp,Yb=(yc+STH/2)*cp,ry=Math.max(0,s.r*sn);
+    ctx.fillStyle=shade(s.col,sh);ctx.beginPath();ctx.ellipse(0,Yb,s.r,ry,0,0,TAU);ctx.rect(-s.r,Yt,2*s.r,Yb-Yt);ctx.fill('nonzero');
+    ctx.beginPath();ctx.ellipse(0,Yt,s.r,ry,0,0,TAU);ctx.fillStyle=HEX[s.col];ctx.fill();
+    if(rim>0.05){ctx.strokeStyle=HEX.bg;ctx.lineWidth=rim;ctx.stroke();}
+  }
+  ctx.restore();
+}
+function sceneD(ctx,t){
+  const P=sphereParams(t),e=Math.sin(P.phi);
+  drawRing(ctx,e,P.psi,-1,'red',5,{len:P.tick,yaw:P.yaw});
+  drawSlabs(ctx,P);
+  drawRing(ctx,e,P.psi,1,'red',5,{len:P.tick,yaw:P.yaw});
+}
+
+/* ---------------- SCENE E: 8-10s telemetry gauge -> mixer ---------------- */
+function counter(ctx,cx,cy,r,t,seq,size,shape){
+  let i=-1;for(let k=0;k<seq.length;k++)if(t>=seq[k][1])i=k;if(i<0)return;
+  const nw=seq[i][0],od=i>0?seq[i-1][0]:'';const e=eOut(seg(t,seq[i][1],seq[i][1]+0.2));
+  ctx.save();if(shape){shape();ctx.clip();}ctx.beginPath();ctx.arc(cx,cy,r,0,TAU);ctx.clip();
+  const base=cy+CAP*size/2-size*0.08,D=size*2;
+  if(od)text(ctx,'black',od,cx,base-D*e,size,'#FFFFFF',{align:.5,track:-0.04});
+  if(nw)text(ctx,'black',nw,cx,base+D*(1-e),size,'#FFFFFF',{align:.5,track:-0.04});
+  const lb=eOut(seg(t,seq[0][1]+0.05,seq[0][1]+0.3))*(seq[seq.length-1][0]===''?1-eIn(seg(t,seq[seq.length-1][1],seq[seq.length-1][1]+0.15)):1);
+  if(lb>0)text(ctx,'bold','BEAT',cx,base+size*0.36+(1-lb)*40,size*0.12,'#FFFFFF',{align:.5,track:0.3});
+  ctx.restore();
+}
+const COUNT_SEQ=[['17',8.0],['18',8.5],['19',9.0],['20',9.5],['21',10.0],['',10.5]];
+function uncurl(start,len,turn,N){ // clockwise curve starting heading right
+  const k=turn/Math.max(len,1e-6),pts=[];
+  for(let n=0;n<=N;n++){const s=len*n/N;if(Math.abs(k)<1e-7)pts.push([start[0]+s,start[1],0]);else pts.push([start[0]+Math.sin(k*s)/k,start[1]+(1-Math.cos(k*s))/k,k*s]);}
+  return pts;
+}
+function trackSpan(t,j){
+  let s=TAU;
+  for(const b of [17,18,19]){const tb=8+(b-17)*0.5;const e=sp(t,tb+j*0.022,tb+j*0.022+0.38,8);s=lerp(s,VAL[b][j]*300*D2R,e);}
+  return s;
+}
+function sceneE(ctx,t){
+  const g=sp(t,8.0,8.4,8),u=t>=9.5?1:0;
+  const disc={x:CX,y:CY,r:143.5};
+  // ring -> ruler
+  const ur=sp(t,9.5,9.95,8);
+  {const L=lerp(TAU*RR,RULER.len,ur),start=lerp2([CX,CY-RR],[RULER.x,RULER.y],ur),turn=TAU*(1-ur);
+   const pts=uncurl(start,L,turn,220);strokePts(ctx,pts,HEX.red,5);
+   ctx.beginPath();for(let k=0;k<48;k++){const s=k/48;const p=uncurl(start,L*s,turn*s,1)[1];const h=p[2];const nx=Math.sin(h),ny=-Math.cos(h);
+     const len=22*(k%4===0?1.8:1),r0=6;ctx.moveTo(p[0]+nx*r0,p[1]+ny*r0);ctx.lineTo(p[0]+nx*(r0+len),p[1]+ny*(r0+len));}
+   ctx.strokeStyle=HEX.ink;ctx.lineWidth=3;ctx.stroke();}
+  // rails (draw-on)
+  const rail=eOut(seg(t,8.08,8.5))*(1-eOut(seg(t,9.5,9.7)));
+  if(rail>0.001){ctx.strokeStyle=HEX.ink;ctx.lineWidth=1.5;for(let j=0;j<7;j++){ctx.beginPath();ctx.arc(CX,CY,TR_R(j),-Math.PI/2,-Math.PI/2+TAU*rail);ctx.stroke();}}
+  // tracks
+  for(let j=0;j<7;j++){
+    const [ri,ro,col]=TR_SRC[j];const rIn=lerp(ri,TR_R(j)-9,g),rOut=lerp(ro,TR_R(j)+9,g);const r=(rIn+rOut)/2,wd=rOut-rIn;
+    const span=trackSpan(t,j);
+    const uj=sp(t,9.5+j*0.025,9.95,8);
+    if(uj<=0){ctx.beginPath();ctx.arc(CX,CY,r,-Math.PI/2,-Math.PI/2+span);ctx.strokeStyle=HEX[col];ctx.lineWidth=wd;ctx.lineCap='butt';ctx.stroke();continue;}
+    const L=lerp(r*span,BARV[j]*BMAX,uj),start=lerp2([CX,CY-r],[BX0,ROWY(j)],uj),turn=span*(1-uj);
+    strokePts(ctx,uncurl(start,L,turn,120),HEX[col],lerp(wd,40,uj));
+  }
+  // labels
+  for(let j=0;j<7;j++){const lb=eOut(seg(t,9.6+j*0.025,9.86+j*0.025));if(lb<=0)continue;
+    ctx.save();ctx.beginPath();ctx.rect(460,ROWY(j)-30,170*lb,60);ctx.clip();
+    text(ctx,'bold',TRACKS[j],470,ROWY(j)+9,24,HEX.ink,{track:0.1});ctx.restore();}
+  // centre disc
+  disc.x=lerp(CX,300,ur);disc.r=lerp(143.5,130,ur);
+  ctx.beginPath();ctx.arc(disc.x,disc.y,disc.r,0,TAU);ctx.fillStyle=HEX.red;ctx.fill();
+  counter(ctx,disc.x,disc.y,disc.r,t,COUNT_SEQ,lerp(130,118,ur));
+}
+
+/* ---------------- SCENE F: 10-12s bars -> 3D risers -> barcode ---------------- */
+function barState(t,j){
+  const b21=sp(t,10.0,10.42,8),b22=sp(t,10.5,10.95,8);
+  const L0=BARV[j]*BMAX*(1+0.22*b21),a0=-22*D2R*b21,st=[BX0,ROWY(j)];
+  const c0=[st[0]+L0/2*Math.cos(a0),st[1]+L0/2*Math.sin(a0)];
+  return {c:lerp2(c0,[PX(j+1),CY],b22),L:lerp(L0,1300,b22),a:lerp(a0,-90*D2R,b22),th:lerp(40,56,b22),dep:26*b21*(1-b22),col:mixc(TR_SRC[j][2],'ink',b22)};
+}
+function drawBar(ctx,B){
+  const u=[Math.cos(B.a),Math.sin(B.a)],n=[-u[1],u[0]];
+  const P=[[1,1],[1,-1],[-1,-1],[-1,1]].map(([a,b])=>[B.c[0]+u[0]*B.L/2*a+n[0]*B.th/2*b,B.c[1]+u[1]*B.L/2*a+n[1]*B.th/2*b]);
+  if(B.dep>0.3){const D=[B.dep*0.62,-B.dep*0.78];const Q=P.map(p=>[p[0]+D[0],p[1]+D[1]]);
+    ctx.fillStyle=HEX.ink;fillPoly(ctx,Q,HEX.ink);for(let k=0;k<4;k++)fillPoly(ctx,[P[k],P[(k+1)%4],Q[(k+1)%4],Q[k]],HEX.ink);
+    fillPoly(ctx,P,B.col);ctx.strokeStyle=HEX.bg;ctx.lineWidth=2*clamp(B.dep/26);ctx.stroke();}
+  else fillPoly(ctx,P,B.col);
+}
+function childRects(t){ // after 11.0
+  const b23=sp(t,11.0,11.45,8),b24=0.6*sp(t,11.5,11.85,8)+0.4*eIn(seg(t,11.5,12.0));
+  const out=[];
+  for(let n=0;n<NCH;n++){const p=Math.floor(n/6),k=n%6;const x0=PX(p)-28+k*56/6;
+    let a=lerp(x0,L2[n][0],b23),b=lerp(x0+56/6,L2[n][1],b23);a=lerp(a,L3[n][0],b24);b=lerp(b,L3[n][1],b24);
+    out.push({x0:a,x1:b,col:p===0?'red':'ink'});}
+  return out;
+}
+function sceneF(ctx,t){
+  if(t<11.0){
+    // ruler retracts, labels retract
+    const rr=1-eIn(seg(t,10.0,10.26));
+    if(rr>0){ctx.fillStyle=HEX.red;ctx.fillRect(RULER.x,RULER.y-2.5,RULER.len*rr,5);ctx.beginPath();
+      for(let k=0;k<48;k++){const x=RULER.x+k/48*RULER.len;if(x>RULER.x+RULER.len*rr)break;const len=22*(k%4===0?1.8:1);ctx.moveTo(x,RULER.y-6);ctx.lineTo(x,RULER.y-6-len);}
+      ctx.strokeStyle=HEX.ink;ctx.lineWidth=3;ctx.stroke();}
+    const lr=1-eIn(seg(t,10.0,10.2));
+    if(lr>0)for(let j=0;j<7;j++){ctx.save();ctx.beginPath();ctx.rect(460,ROWY(j)-30,170*lr,60);ctx.clip();text(ctx,'bold',TRACKS[j],470,ROWY(j)+9,24,HEX.ink,{track:0.1});ctx.restore();}
+    for(let j=0;j<7;j++)drawBar(ctx,barState(t,j));
+    // disc -> pill
+    const b22=sp(t,10.5,10.95,8);const cx=lerp(300,PX(0),b22),w=lerp(260,56,b22),h=lerp(260,1300,b22),rad=Math.min(w,h)/2;
+    const shape=()=>{ctx.beginPath();ctx.roundRect(cx-w/2,CY-h/2,w,h,rad);};
+    shape();ctx.fillStyle=HEX.red;ctx.fill();
+    counter(ctx,cx,CY,130,t,COUNT_SEQ,118,shape);
+    return;
+  }
+  for(const c of childRects(t)){ctx.fillStyle=HEX[c.col];ctx.fillRect(c.x0-0.5,-120,c.x1-c.x0+1,H+240);}
+}
+
+/* ---------------- SCENE G: 12-14s full-screen blocks + slams ---------------- */
+function blockExt(t){
+  let w=BW[25].slice();
+  for(const b of [26,27,28]){const tb=12+(b-25)*0.5,e=sp(t,tb,tb+0.32,9);w=w.map((v,i)=>lerp(v,BW[b][i],e));}
+  const out=[];let x=0;for(let i=0;i<4;i++){out.push([x,x+w[i]*W]);x+=w[i]*W;}return out;
+}
+const WORDS_G=[{w:'ONE',t:12.0,d:[0,-1]},{w:'BAR',t:12.5,d:[1,0]},{w:'EVERY',t:13.0,d:[0,1]},{w:'BEAT',t:13.5,d:null}];
+const NSTRIP=8;
+function stripOff(t,j){ // block slicing offsets (beat 28 -> 29)
+  const dir=j%2?1:-1;return dir*34*sp(t,13.5,13.82,9)*(1-sp(t,14.0,14.28,9));
+}
+function drawBlocks(ctx,t,dx){
+  const ext=blockExt(t);
+  const b25=t<12.4;
+  for(let n=0;n<NCH;n++){const p=Math.floor(n/6),b=Math.floor(p/2),m=n-b*12;const e=sp(t,12.0+n*0.0015,12.36,9);
+    const [X0,X1]=ext[b];const cw=(X1-X0)/12;const tx0=X0+m*cw,tx1=tx0+cw;
+    const a=lerp(L3[n][0],tx0,e),bb=lerp(L3[n][1],tx1,e);
+    const col=t>=12.0+(n/47)*0.12?BLOCKCOL[b]:(p===0?'red':'ink');
+    ctx.fillStyle=HEX[col];ctx.fillRect(a+dx-0.5,-10,bb-a+1,H+20);}
+}
+function layG(word,t,tw){const L=bigLayout(word,900,990,1800);const s=1+0.035*seg(t,tw+0.2,tw+0.5);return L.map(l=>({...l,cx:CX+(l.cx-CX)*s,base:CY+(l.base-CY)*s,ex:l.ex*s,ey:l.ey*s}));}
+function wordsG(t){let wi=-1;for(let i=0;i<WORDS_G.length;i++)if(t>=WORDS_G[i].t)wi=i;return wi;}
+function sceneG(ctx,t,squeeze=0){
+  const sliced=t>=13.5;const wi=wordsG(t);const cur=WORDS_G[wi],old=wi>0?WORDS_G[wi-1]:null;
+  const lc=layG(cur.w,t,cur.t),lo=old?layG(old.w,t,old.t):null;
+  const sq=l=>squeeze>0?l.map(L=>({...L,cx:CX+(L.cx-CX)*(1-squeeze),ex:L.ex*(1-squeeze),comp:L.comp*(1-squeeze)})):l;
+  const n=sliced?NSTRIP:1;
+  for(let j=0;j<n;j++){
+    const y0=sliced?j*H/NSTRIP:-100,y1=sliced?(j+1)*H/NSTRIP:H+100;
+    ctx.save();ctx.beginPath();ctx.rect(-200,y0,W+400,y1-y0);ctx.clip();
+    const bo=sliced?stripOff(t,j):0;
+    drawBlocks(ctx,t,bo);
+    if(squeeze<1){
+      if(cur.d){const e=eOut(seg(t,cur.t,cur.t+0.2));const D=cur.d[0]?2100:1250;const ox=cur.d[0]*D*(1-e),oy=cur.d[1]*D*(1-e);
+        drawWord(ctx,sq(lc),HEX.ink,ox,oy);if(lo)drawWord(ctx,sq(lo),HEX.ink,ox-cur.d[0]*D,oy-cur.d[1]*D);}
+      else{const dir=j%2?1:-1,d=j*0.012;const e=eOut(seg(t,cur.t+d,cur.t+d+0.2));const offN=dir*2100*(1-e);
+        drawWord(ctx,sq(lc),HEX.ink,offN);if(lo&&e<1)drawWord(ctx,sq(lo),HEX.ink,offN-dir*2100);}
+    }
+    ctx.restore();
+  }
+}
+
+/* ---------------- SCENE H: 14-15s collapse -> lockup ---------------- */
+function sceneH(ctx,t){
+  const c=eIO(seg(t,14.0,14.42));
+  if(c<1){
+    const ext=blockExt(t);const S=lockSlash();
+    const order=[3,1,2,0];
+    for(let j=0;j<NSTRIP;j++){const y0=j*H/NSTRIP,y1=(j+1)*H/NSTRIP;ctx.save();ctx.beginPath();ctx.rect(-200,y0,W+400,y1-y0);ctx.clip();
+      const bo=stripOff(t,j);
+      for(const b of order){const [x0,x1]=ext[b];const R=[[x0-1+bo,-10],[x1+1+bo,-10],[x1+1+bo,H+10],[x0-1+bo,H+10]];
+        fillPoly(ctx,R.map((p,k)=>lerp2(p,S[k],c)),HEX[BLOCKCOL[b]]);}
+      ctx.restore();}
+    // text squeezes into the slash
+    const c2=eIO(seg(t,14.0,14.28));const lay=layG('BEAT',t,13.5).map(L=>({...L,cx:CX+(L.cx-CX)*(1-c2),ex:L.ex*(1-c2),comp:L.comp*(1-c2)}));
+    if(c2<0.995)for(let j=0;j<NSTRIP;j++){const y0=j*H/NSTRIP;ctx.save();ctx.beginPath();ctx.rect(-200,y0,W+400,H/NSTRIP);ctx.clip();drawWord(ctx,lay,HEX.ink);ctx.restore();}
+    return;
+  }
+  fillPoly(ctx,lockSlash(),HEX.red);
+  const o=sp(t,14.5,14.98,8),ol=sp(t,14.58,14.98,8);
+  drawLockText(ctx,t,o,ol);
+}
+
+/* ---------------- HUD ---------------- */
+function hud(ctx,t){
+  const beat=Math.floor(t/0.5)+1;const f=n=>String(n).padStart(2,'0');
+  const cs=Math.floor((t%1)*100);
+  const o={track:0.16};
+  text(ctx,'bold','GODOFMOTION',48,62,15,HEX.ink,o);
+  text(ctx,'bold',`BEAT ${f(beat)} / 30`,W-48,62,15,HEX.ink,{...o,align:1});
+  text(ctx,'bold','120 BPM · 4/4',48,H-46,15,HEX.ink,o);
+  text(ctx,'bold',`00:${f(Math.floor(t))}.${f(cs)}`,W-48,H-46,15,HEX.ink,{...o,align:1});
+}
+
+/* ---------------- frame ---------------- */
+function render(ctx,t){
+  t=((t%LOOP)+LOOP)%LOOP;
+  ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.fillStyle=HEX.bg;ctx.fillRect(0,0,W,H);
+  if(t<2)sceneA(ctx,t);else if(t<4)sceneB(ctx,t);else if(t<6)sceneC(ctx,t);else if(t<8)sceneD(ctx,t);
+  else if(t<10)sceneE(ctx,t);else if(t<12)sceneF(ctx,t);else if(t<14)sceneG(ctx,t);else sceneH(ctx,t);
+  hud(ctx,t);
+}
+const cv=document.getElementById('c'),main=cv.getContext('2d');
+const work=document.createElement('canvas');work.width=W;work.height=H;const wctx=work.getContext('2d');
+// temporal super-sampling inside the shutter: blur follows real speed + direction
+window.seek=function(t,K=4,span=1/360){
+  if(K<=1){render(main,t);return;}
+  for(let k=0;k<K;k++){const tk=t+((k+0.5)/K-0.5)*span;render(wctx,tk);main.globalAlpha=1/(k+1);main.drawImage(work,0,0);}
+  main.globalAlpha=1;
+};
+window.seek(0,1);
+</script>
+<script>
+/* ---------------- soundtrack: Web Audio (OfflineAudioContext) ---------------- */
+window.renderAudio=async function(){
+  const SR=48000,LEN=16.5,BEAT=0.5;
+  const ac=new OfflineAudioContext(2,Math.ceil(SR*LEN),SR);
+  const comp=ac.createDynamicsCompressor();comp.threshold.value=-14;comp.ratio.value=4;comp.attack.value=0.003;comp.release.value=0.12;comp.knee.value=6;
+  const master=ac.createGain();master.gain.value=0.8;master.connect(comp);comp.connect(ac.destination);
+  const nb=ac.createBuffer(1,SR*2,SR);{const d=nb.getChannelData(0);let s=1234567;for(let i=0;i<d.length;i++){s=(s*1103515245+12345)&0x7fffffff;d[i]=s/0x3fffffff-1;}}
+  const noise=(t,dur)=>{const n=ac.createBufferSource();n.buffer=nb;n.start(t,(t*0.37)%1.5,dur+0.05);return n;};
+  const env=(g,t,a,peak,dec)=>{g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(peak,t+a);g.gain.exponentialRampToValueAtTime(0.0001,t+a+dec);};
+  const pan=(node,p)=>{const s=ac.createStereoPanner();s.pan.value=p;node.connect(s);return s;};
+  function kick(t,amp=1){const o=ac.createOscillator();o.frequency.setValueAtTime(165,t);o.frequency.exponentialRampToValueAtTime(46,t+0.11);
+    const g=ac.createGain();env(g,t,0.002,amp,0.42);o.connect(g);g.connect(master);o.start(t);o.stop(t+0.5);
+    const n=noise(t,0.01),hp=ac.createBiquadFilter();hp.type='highpass';hp.frequency.value=3000;const g2=ac.createGain();env(g2,t,0.001,0.25*amp,0.012);n.connect(hp);hp.connect(g2);g2.connect(master);}
+  function hat(t,amp=0.18,dec=0.04,p=0.25){const n=noise(t,dec+0.02),hp=ac.createBiquadFilter();hp.type='highpass';hp.frequency.value=7500;const g=ac.createGain();env(g,t,0.001,amp,dec);n.connect(hp);hp.connect(g);pan(g,p).connect(master);}
+  function clap(t,amp=0.45){const bp=ac.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1300;bp.Q.value=0.9;const g=ac.createGain();g.gain.setValueAtTime(0.0001,t);
+    [0,0.011,0.022].forEach(o=>{g.gain.setValueAtTime(amp,t+o);g.gain.exponentialRampToValueAtTime(amp*0.2,t+o+0.009);});g.gain.setValueAtTime(amp*0.8,t+0.033);g.gain.exponentialRampToValueAtTime(0.0001,t+0.2);
+    const n=noise(t,0.22);n.connect(bp);bp.connect(g);g.connect(master);}
+  function bass(t,f,dur=0.2,amp=0.32){const o=ac.createOscillator();o.type='sawtooth';o.frequency.value=f;const o2=ac.createOscillator();o2.type='sine';o2.frequency.value=f;
+    const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(1100,t);lp.frequency.exponentialRampToValueAtTime(180,t+dur);lp.Q.value=4;
+    const g=ac.createGain();env(g,t,0.004,amp,dur);o.connect(lp);o2.connect(lp);lp.connect(g);g.connect(master);o.start(t);o2.start(t);o.stop(t+dur+0.05);o2.stop(t+dur+0.05);}
+  function hit(t,big=1){ // scene change impact
+    const o=ac.createOscillator();o.frequency.setValueAtTime(90,t);o.frequency.exponentialRampToValueAtTime(32,t+0.6);const g=ac.createGain();env(g,t,0.003,0.55*big,0.75);o.connect(g);g.connect(master);o.start(t);o.stop(t+0.9);
+    const n=noise(t,0.9),lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(9000,t);lp.frequency.exponentialRampToValueAtTime(600,t+0.6);const g2=ac.createGain();env(g2,t,0.002,0.32*big,0.65);n.connect(lp);lp.connect(g2);g2.connect(master);
+    [523.25,784,1046.5].forEach((f,i)=>{const m=ac.createOscillator();m.type='square';m.frequency.value=f*1.003;const bp=ac.createBiquadFilter();bp.type='bandpass';bp.frequency.value=f*2;bp.Q.value=6;const g3=ac.createGain();env(g3,t,0.002,0.05*big,0.3);m.connect(bp);bp.connect(g3);pan(g3,[-.5,0,.5][i]).connect(master);m.start(t);m.stop(t+0.4);});}
+  function blip(t,f){const o=ac.createOscillator();o.type='sine';o.frequency.value=f;const g=ac.createGain();env(g,t,0.002,0.14,0.09);o.connect(g);g.connect(master);o.start(t);o.stop(t+0.15);}
+  function stab(t,amp=0.16){[220,261.63,329.63,440].forEach((f,i)=>{const o=ac.createOscillator();o.type='sawtooth';o.frequency.value=f*(1+(i-1.5)*0.002);const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(4200,t);lp.frequency.exponentialRampToValueAtTime(500,t+0.22);
+    const g=ac.createGain();env(g,t,0.003,amp,0.24);o.connect(lp);lp.connect(g);pan(g,(i-1.5)*0.35).connect(master);o.start(t);o.stop(t+0.3);});}
+  function whoosh(t,dur,up=true){const n=noise(t,dur),bp=ac.createBiquadFilter();bp.type='bandpass';bp.Q.value=1.4;bp.frequency.setValueAtTime(up?400:5000,t);bp.frequency.exponentialRampToValueAtTime(up?5000:300,t+dur);
+    const g=ac.createGain();g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.28,t+dur*0.8);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);n.connect(bp);bp.connect(g);g.connect(master);}
+  // arrangement
+  const roots=[55,55,43.65,49,55,65.41,58.27,41.2]; // per bar (A A F G A C Bb E)
+  for(let n=0;n<30;n++){const t=n*BEAT,bar=Math.floor(n/4);
+    kick(t,n>=24&&n<28?1.1:1);
+    if(n>=4)hat(t+0.25,0.16,0.04,0.25);
+    if(n>=8&&n<24){hat(t+0.125,0.07,0.025,-0.3);hat(t+0.375,0.07,0.025,-0.3);}
+    if(n%2===1&&n>=4&&n<28)clap(t);
+    if(n>=2&&n<28&&!(n>=20&&n<24))bass(t+0.25,roots[bar]*(n%4===3?2:1));
+    if(n>=16&&n<20)blip(t+0.02,[1760,1975.5,2217.5,2637][n-16]);
+    if(n>=24&&n<28){stab(t);clap(t,0.5);bass(t,roots[6],0.4,0.4);}
+  }
+  [0,2,4,6,8,10,14].forEach(t=>hit(t,t===0?0.8:1));hit(12,1.5);
+  // riser into the last full bar (10s -> 12s)
+  {const t0=10,t1=11.97;const n=noise(t0,2.2),bp=ac.createBiquadFilter();bp.type='bandpass';bp.Q.value=2;bp.frequency.setValueAtTime(300,t0);bp.frequency.exponentialRampToValueAtTime(7000,t1);
+   const g=ac.createGain();g.gain.setValueAtTime(0.0001,t0);g.gain.exponentialRampToValueAtTime(0.8,t1);g.gain.setValueAtTime(0.0001,t1+0.01);n.connect(bp);bp.connect(g);g.connect(master);
+   const o=ac.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(110,t0);o.frequency.exponentialRampToValueAtTime(1320,t1);const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2600;
+   const g2=ac.createGain();g2.gain.setValueAtTime(0.0001,t0);g2.gain.exponentialRampToValueAtTime(0.22,t1);g2.gain.setValueAtTime(0.0001,t1+0.01);o.connect(lp);lp.connect(g2);g2.connect(master);o.start(t0);o.stop(t1+0.02);
+   for(let k=0;k<16;k++){const tt=10+k*0.125;clap(tt,0.08+0.3*k/15);} }
+  whoosh(0.05,0.4,false);whoosh(14.08,0.42,true);
+  const buf=await ac.startRendering();
+  // wrap the tail past 15 s onto the head -> seamless loop
+  const N=SR*15,ch=[buf.getChannelData(0),buf.getChannelData(1)],out=[new Float32Array(N),new Float32Array(N)];
+  for(let c=0;c<2;c++){for(let i=0;i<N;i++)out[c][i]=ch[c][i];for(let i=N;i<ch[c].length;i++)out[c][i-N]+=ch[c][i];}
+  let pk=0;for(const o of out)for(const v of o)pk=Math.max(pk,Math.abs(v));const gn=0.89/pk;
+  const ab=new ArrayBuffer(44+N*4),dv=new DataView(ab);const ws=(o,s)=>{for(let i=0;i<s.length;i++)dv.setUint8(o+i,s.charCodeAt(i));};
+  ws(0,'RIFF');dv.setUint32(4,36+N*4,true);ws(8,'WAVE');ws(12,'fmt ');dv.setUint32(16,16,true);dv.setUint16(20,1,true);dv.setUint16(22,2,true);dv.setUint32(24,SR,true);dv.setUint32(28,SR*4,true);dv.setUint16(32,4,true);dv.setUint16(34,16,true);ws(36,'data');dv.setUint32(40,N*4,true);
+  let o=44;for(let i=0;i<N;i++)for(let c=0;c<2;c++){dv.setInt16(o,Math.max(-32768,Math.min(32767,Math.round(out[c][i]*gn*32767))),true);o+=2;}
+  let bin='';const u8=new Uint8Array(ab);for(let i=0;i<u8.length;i+=0x8000)bin+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));
+  return btoa(bin);
+};
+</script>
+</body></html>
