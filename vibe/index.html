@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0a0a12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VIBE">
+<title>VIBE — ชีวิตดีขึ้นวันละนิด</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0a12; --glass:rgba(255,255,255,.06); --glass2:rgba(255,255,255,.1); --line:rgba(255,255,255,.09);
+  --ink:#f5f3ff; --mute:#9a96b3;
+  --a:#b46bff; --b:#ff4fa3; --c:#35e0c2; --d:#ffc94a; --e:#4fa8ff;
+  --grad:linear-gradient(135deg,#b46bff,#ff4fa3);
+  --r:24px;
+  --st:env(safe-area-inset-top,0px); --sb:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overscroll-behavior:none}
+body{background:var(--bg);color:var(--ink);font-family:'Prompt',system-ui,sans-serif;font-weight:300;-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+input{font:inherit;color:inherit}
+
+/* animated blobs */
+.blobs{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.blobs i{position:absolute;width:60vmax;height:60vmax;border-radius:50%;filter:blur(80px);opacity:.35;animation:float 18s infinite alternate ease-in-out}
+.blobs i:nth-child(1){background:#7b2cff;top:-25vmax;left:-20vmax}
+.blobs i:nth-child(2){background:#ff2d87;bottom:-30vmax;right:-25vmax;animation-delay:-6s}
+.blobs i:nth-child(3){background:#00c9a7;top:40%;left:50%;width:35vmax;height:35vmax;opacity:.18;animation-delay:-12s}
+@keyframes float{to{transform:translate(8vmax,6vmax) scale(1.15)}}
+
+#app{position:relative;z-index:1;height:100%;max-width:480px;margin:0 auto;display:flex;flex-direction:column}
+.page{flex:1;overflow-y:auto;padding:calc(var(--st) + 18px) 18px calc(var(--sb) + 110px);display:none;-webkit-overflow-scrolling:touch}
+.page.on{display:block;animation:pin .45s cubic-bezier(.2,.8,.2,1)}
+@keyframes pin{from{opacity:0;transform:translateY(14px) scale(.985)}}
+
+.card{background:var(--glass);border:1px solid var(--line);border-radius:var(--r);padding:18px;margin-bottom:14px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);position:relative;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px}
+.sp{justify-content:space-between}
+.mute{color:var(--mute)} .s{font-size:.82rem} .xs{font-size:.72rem}
+h1{font-weight:800;font-size:1.65rem;line-height:1.2;letter-spacing:-.01em}
+h3{font-weight:600;font-size:1rem}
+.gt{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.pill{padding:6px 12px;border-radius:99px;background:var(--glass2);font-size:.78rem;font-weight:400}
+.btn{background:var(--grad);padding:13px 20px;border-radius:16px;font-weight:600;box-shadow:0 8px 24px rgba(255,79,163,.35);transition:transform .12s}
+.btn:active,.tap:active{transform:scale(.94)}
+.tap{transition:transform .12s}
+.btn.ghost{background:var(--glass2);box-shadow:none}
+
+/* header */
+.lvl{display:flex;align-items:center;gap:10px;margin-top:14px}
+.lvl b{font-weight:800;font-size:.8rem;background:var(--grad);padding:4px 10px;border-radius:10px}
+.xpbar{flex:1;height:8px;border-radius:9px;background:var(--glass2);overflow:hidden}
+.xpbar i{display:block;height:100%;background:linear-gradient(90deg,var(--c),var(--e),var(--a));border-radius:9px;transition:width .6s cubic-bezier(.2,.8,.2,1)}
+
+/* week strip */
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:18px 0 14px}
+.day{text-align:center;padding:8px 0;border-radius:16px;font-size:.72rem;color:var(--mute)}
+.day.today{background:var(--glass2);color:var(--ink)}
+.day svg{display:block;margin:6px auto 0}
+
+/* score */
+.score{display:flex;align-items:center;gap:18px}
+.ring{position:relative;flex:none}
+.ring .lbl{position:absolute;inset:0;display:grid;place-items:center;text-align:center;line-height:1.1}
+.ring .lbl b{font-weight:800;font-size:1.6rem}
+.ring circle{transition:stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+
+/* mood */
+.moods{display:flex;justify-content:space-between;margin-top:12px}
+.mood{font-size:2rem;width:54px;height:54px;border-radius:18px;display:grid;place-items:center;background:var(--glass);transition:all .25s cubic-bezier(.3,1.6,.5,1);filter:grayscale(.7);opacity:.7}
+.mood.on{filter:none;opacity:1;transform:scale(1.18);background:var(--glass2);box-shadow:0 0 0 2px var(--b),0 10px 30px rgba(255,79,163,.4)}
+
+/* water */
+.glasses{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:12px}
+.gl{height:44px;border-radius:10px 10px 14px 14px;border:2px solid rgba(79,168,255,.35);position:relative;overflow:hidden}
+.gl::after{content:"";position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(#6fc3ff,#2f7bff);transition:height .4s cubic-bezier(.3,1.4,.5,1)}
+.gl.on::after{height:85%}
+
+/* challenge */
+.chal{background:linear-gradient(135deg,rgba(180,107,255,.25),rgba(255,79,163,.18));}
+.chal .big{font-size:1.15rem;font-weight:600;margin:6px 0 14px}
+.done-tag{color:var(--c);font-weight:600}
+
+/* habits */
+.habit{display:flex;align-items:center;gap:14px;padding:14px;border-radius:20px;background:var(--glass);border:1px solid var(--line);margin-bottom:10px;transition:background .3s}
+.habit.ok{background:linear-gradient(135deg,rgba(53,224,194,.18),rgba(79,168,255,.12));border-color:rgba(53,224,194,.35)}
+.habit .em{font-size:1.6rem;width:46px;height:46px;border-radius:15px;background:var(--glass2);display:grid;place-items:center;flex:none}
+.habit .nm{flex:1;min-width:0}
+.habit .nm b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chk{width:44px;height:44px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;flex:none;transition:all .3s cubic-bezier(.3,1.6,.5,1)}
+.habit.ok .chk{background:var(--c);border-color:var(--c);color:#06231d;transform:rotate(360deg)}
+.del{width:34px;height:34px;border-radius:12px;background:rgba(255,79,107,.2);color:#ff6b8a;display:none;flex:none}
+.editing .del{display:grid;place-items:center}
+.editing .chk{display:none}
+.add{display:flex;gap:8px;margin-top:6px}
+.add input{background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:12px;outline:none;min-width:0}
+.add input:focus{border-color:var(--a)}
+.heat{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:12px}
+.heat i{aspect-ratio:1;border-radius:7px;background:var(--glass);display:grid;place-items:center;font-size:.85rem;font-style:normal}
+
+/* focus */
+.fwrap{display:flex;flex-direction:column;align-items:center;padding:10px 0}
+.ftime{font-weight:800;font-size:3.4rem;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.seg{display:flex;background:var(--glass);border-radius:16px;padding:4px;gap:4px;margin:18px 0}
+.seg button{padding:9px 14px;border-radius:12px;font-size:.85rem;color:var(--mute);transition:all .2s}
+.seg button.on{background:var(--glass2);color:var(--ink)}
+.fbtns{display:flex;gap:12px;align-items:center}
+.play{width:78px;height:78px;border-radius:50%;background:var(--grad);display:grid;place-items:center;box-shadow:0 12px 34px rgba(255,79,163,.45)}
+.sm{width:54px;height:54px;border-radius:50%;background:var(--glass2);display:grid;place-items:center}
+.running .ringglow{animation:pulse 2s infinite}
+@keyframes pulse{50%{filter:drop-shadow(0 0 18px rgba(180,107,255,.8))}}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:var(--glass);border:1px solid var(--line);border-radius:20px;padding:14px}
+.stat b{display:block;font-size:1.5rem;font-weight:800}
+
+/* money */
+.amt{font-size:2.4rem;font-weight:800;letter-spacing:-.02em}
+.mbar{height:12px;border-radius:9px;background:var(--glass2);overflow:hidden;margin:10px 0 6px}
+.mbar i{display:block;height:100%;border-radius:9px;transition:width .6s,background .3s}
+.cats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.cat{padding:10px 4px;border-radius:14px;background:var(--glass);border:1px solid var(--line);font-size:.8rem;text-align:center}
+.cat span{display:block;font-size:1.4rem}
+.cat.on{border-color:var(--b);background:rgba(255,79,163,.15)}
+.bars{display:flex;align-items:flex-end;gap:8px;height:120px;margin-top:14px}
+.bars div{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+.bars div i{width:100%;border-radius:8px 8px 4px 4px;background:var(--grad);min-height:4px;transition:height .6s cubic-bezier(.2,.8,.2,1)}
+.bars div.over i{background:linear-gradient(#ff6b6b,#ff4f8b)}
+.tx{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.tx:last-child{border:0}
+.tx .e{font-size:1.4rem}
+.tx .x{color:var(--mute);padding:6px}
+
+/* nav */
+nav{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--sb) + 14px);width:calc(100% - 28px);max-width:452px;z-index:10;display:flex;justify-content:space-around;padding:8px;border-radius:26px;background:rgba(20,18,32,.72);backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);border:1px solid var(--line);box-shadow:0 20px 40px rgba(0,0,0,.4)}
+nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0;border-radius:18px;font-size:.68rem;color:var(--mute);transition:all .25s}
+nav button svg{width:24px;height:24px;transition:transform .3s cubic-bezier(.3,1.6,.5,1)}
+nav button.on{color:var(--ink);background:var(--glass2)}
+nav button.on svg{transform:translateY(-2px) scale(1.12);stroke:url(#ng)}
+
+/* toast */
+#toast{position:fixed;top:calc(var(--st) + 14px);left:50%;transform:translate(-50%,-140%);z-index:50;padding:10px 18px;border-radius:99px;background:rgba(30,26,48,.92);border:1px solid var(--line);backdrop-filter:blur(20px);font-weight:600;transition:transform .45s cubic-bezier(.3,1.5,.5,1);white-space:nowrap}
+#toast.on{transform:translate(-50%,0)}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:60}
+
+/* modal */
+.modal{position:fixed;inset:0;z-index:40;background:rgba(5,5,10,.7);backdrop-filter:blur(10px);display:none;align-items:flex-end;justify-content:center}
+.modal.on{display:flex}
+.sheet{width:100%;max-width:480px;background:#16142a;border-radius:30px 30px 0 0;padding:26px 22px calc(var(--sb) + 26px);border:1px solid var(--line);animation:up .45s cubic-bezier(.2,.9,.2,1)}
+@keyframes up{from{transform:translateY(100%)}}
+.sheet input{width:100%;background:var(--glass);border:1px solid var(--line);border-radius:16px;padding:15px;margin:16px 0;outline:none;font-size:1.05rem}
+.levelup{text-align:center}
+.levelup .n{font-size:5rem;font-weight:800;line-height:1}
+</style>
+</head>
+<body>
+<div class="blobs"><i></i><i></i><i></i></div>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <linearGradient id="ng" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b46bff"/><stop offset="1" stop-color="#ff4fa3"/></linearGradient>
+  <linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#35e0c2"/><stop offset=".5" stop-color="#4fa8ff"/><stop offset="1" stop-color="#b46bff"/></linearGradient>
+  <linearGradient id="fg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b46bff"/><stop offset="1" stop-color="#ff4fa3"/></linearGradient>
+</defs></svg>
+
+<div id="app">
+  <!-- TODAY -->
+  <section class="page on" id="p-today">
+    <div class="row sp">
+      <div>
+        <div class="mute s" id="dateTxt"></div>
+        <h1 id="hello"></h1>
+      </div>
+      <button class="pill tap" id="streakPill">🔥 0</button>
+    </div>
+    <div class="lvl"><b id="lvlTxt">LV 1</b><div class="xpbar"><i id="xpBar"></i></div><span class="xs mute" id="xpTxt"></span></div>
+    <div class="week" id="week"></div>
+
+    <div class="card">
+      <div class="score">
+        <div class="ring" id="scoreRing"></div>
+        <div>
+          <h3>คะแนนวันนี้</h3>
+          <div class="mute s" id="scoreMsg"></div>
+          <div class="chips" id="scoreChips"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row sp"><h3>วันนี้รู้สึกยังไง?</h3><span class="xs mute">+5 XP</span></div>
+      <div class="moods" id="moods"></div>
+    </div>
+
+    <div class="card">
+      <div class="row sp"><h3>💧 น้ำ <span id="waterN">0</span>/8 แก้ว</h3><span class="xs mute">แตะเพื่อเติม</span></div>
+      <div class="glasses" id="glasses"></div>
+    </div>
+
+    <div class="card chal">
+      <div class="row sp"><span class="pill">⚡ ภารกิจประจำวัน</span><span class="xs mute">+15 XP</span></div>
+      <div class="big" id="chalTxt"></div>
+      <div id="chalBtn"></div>
+    </div>
+
+    <div class="card">
+      <div class="xs mute">คำคมประจำวัน</div>
+      <div style="font-size:1.05rem;margin-top:6px;font-weight:400" id="quote"></div>
+    </div>
+  </section>
+
+  <!-- HABITS -->
+  <section class="page" id="p-habits">
+    <div class="row sp"><h1>นิสัย<span class="gt">ดีๆ</span></h1><button class="pill tap" id="editBtn">แก้ไข</button></div>
+    <p class="mute s" style="margin:4px 0 16px">ทำซ้ำทุกวัน = ชีวิตเปลี่ยน · ข้อละ +10 XP</p>
+    <div id="habitList"></div>
+    <div class="add" id="addRow" style="display:none">
+      <input id="hEmoji" maxlength="2" placeholder="😀" style="width:58px;text-align:center">
+      <input id="hName" maxlength="30" placeholder="นิสัยใหม่ เช่น อ่านหนังสือ 10 นาที" style="flex:1">
+      <button class="btn tap" id="hAdd" style="padding:12px 16px">+</button>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <div class="row sp"><h3>มู้ดย้อนหลัง 4 สัปดาห์</h3><span class="xs mute" id="moodAvg"></span></div>
+      <div class="heat" id="heat"></div>
+    </div>
+  </section>
+
+  <!-- FOCUS -->
+  <section class="page" id="p-focus">
+    <h1>โฟกัส<span class="gt">โหมด</span></h1>
+    <p class="mute s" style="margin-top:4px">วางมือถือ แล้วไปทำสิ่งที่สำคัญ · จบรอบละ +20 XP</p>
+    <div class="fwrap" id="fwrap">
+      <div class="seg" id="fseg"></div>
+      <div class="ring ringglow" id="fring"></div>
+      <div class="fbtns" style="margin-top:22px">
+        <button class="sm tap" id="fReset" aria-label="รีเซ็ต"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+        <button class="play tap" id="fPlay" aria-label="เริ่ม"></button>
+        <button class="sm tap" id="fSkip" aria-label="ข้าม"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 4l10 8-10 8z"/><path d="M19 5v14"/></svg></button>
+      </div>
+    </div>
+    <div class="stats" style="margin-top:10px">
+      <div class="stat"><span class="xs mute">รอบวันนี้</span><b id="fToday">0</b></div>
+      <div class="stat"><span class="xs mute">นาทีโฟกัสทั้งหมด</span><b id="fTotal">0</b></div>
+    </div>
+  </section>
+
+  <!-- MONEY -->
+  <section class="page" id="p-money">
+    <div class="row sp"><h1>กระเป๋า<span class="gt">ตังค์</span></h1><button class="pill tap" id="budgetBtn">งบ ฿300/วัน</button></div>
+    <div class="card" style="margin-top:16px">
+      <div class="mute s">วันนี้ใช้ไป</div>
+      <div class="amt" id="spentToday">฿0</div>
+      <div class="mbar"><i id="mBar"></i></div>
+      <div class="xs mute" id="mLeft"></div>
+    </div>
+    <div class="card">
+      <h3>จดรายจ่าย</h3>
+      <div class="cats" id="cats"></div>
+      <div class="add">
+        <input id="mAmt" type="number" inputmode="decimal" placeholder="฿ จำนวน" style="width:40%">
+        <input id="mNote" maxlength="24" placeholder="โน้ต (ไม่ใส่ก็ได้)" style="flex:1">
+      </div>
+      <button class="btn tap" id="mAdd" style="width:100%;margin-top:10px">บันทึก</button>
+    </div>
+    <div class="card">
+      <div class="row sp"><h3>7 วันล่าสุด</h3><span class="xs mute" id="weekSum"></span></div>
+      <div class="bars" id="bars"></div>
+    </div>
+    <div class="card">
+      <h3>รายการวันนี้</h3>
+      <div id="txList"></div>
+    </div>
+  </section>
+</div>
+
+<nav id="nav">
+  <button class="on" data-p="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8L12 14.6 7 18.2l1.9-5.8L4 8.8h6.1z"/></svg>วันนี้</button>
+  <button data-p="habits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M8 12l3 3 5-6"/></svg>นิสัย</button>
+  <button data-p="focus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>โฟกัส</button>
+  <button data-p="money"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="13" rx="4"/><path d="M2.5 10h19M16 15h2"/></svg>เงิน</button>
+</nav>
+
+<div id="toast"></div>
+<canvas id="fx"></canvas>
+
+<div class="modal" id="mName"><div class="sheet">
+  <div style="font-size:2.6rem">👋</div>
+  <h1 style="margin-top:8px">ยินดีต้อนรับสู่ <span class="gt">VIBE</span></h1>
+  <p class="mute" style="margin-top:6px">แอปเล็กๆ ที่ช่วยให้ชีวิตดีขึ้นวันละนิด — ข้อมูลเก็บในเครื่องคุณเท่านั้น</p>
+  <input id="nameIn" maxlength="20" placeholder="ให้เรียกว่าอะไรดี?">
+  <button class="btn tap" style="width:100%" id="nameGo">ไปกันเลย 🚀</button>
+</div></div>
+
+<div class="modal" id="mLevel"><div class="sheet levelup">
+  <div class="mute">LEVEL UP!</div>
+  <div class="n gt" id="lvNum">2</div>
+  <p style="margin:8px 0 18px" id="lvMsg"></p>
+  <button class="btn tap" style="width:100%" onclick="closeModal('mLevel')">สุดจัด 🔥</button>
+</div></div>
+
+<div class="modal" id="mBudget"><div class="sheet">
+  <h1>ตั้งงบต่อวัน</h1>
+  <input id="budgetIn" type="number" inputmode="numeric" placeholder="เช่น 300">
+  <button class="btn tap" style="width:100%" id="budgetGo">บันทึก</button>
+</div></div>
+
+<script>
+/* ============ storage ============ */
+const KEY='vibe.v1';
+const dk=(d=new Date())=>d.toLocaleDateString('sv-SE'); // YYYY-MM-DD local
+const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
+const DEF={name:'',xp:0,budget:300,
+  habits:[
+    {id:1,emoji:'🛏️',name:'ตื่นแล้วเก็บที่นอน',done:{}},
+    {id:2,emoji:'📚',name:'อ่าน/เรียนรู้ 20 นาที',done:{}},
+    {id:3,emoji:'🏃',name:'ขยับร่างกาย 30 นาที',done:{}},
+    {id:4,emoji:'📵',name:'ไม่เล่นมือถือก่อนนอน',done:{}},
+  ],
+  moods:{},water:{},focus:{},focusMin:0,chal:{},spend:[]};
+let S;
+try{S=Object.assign(structuredClone(DEF),JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){S=structuredClone(DEF)}
+const save=()=>localStorage.setItem(KEY,JSON.stringify(S));
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const buzz=(p=12)=>navigator.vibrate&&navigator.vibrate(p);
+const baht=n=>'฿'+Math.round(n).toLocaleString('th-TH');
+
+/* ============ XP / level ============ */
+const lvlOf=xp=>Math.floor(Math.sqrt(xp/40))+1;
+const xpFor=l=>(l-1)*(l-1)*40;
+const TITLES=['มือใหม่หัดปั้น','เริ่มมีของ','ตัวตึงประจำบ้าน','สายวินัย','ตัวพ่อตัวแม่','บอสใหญ่','ตำนาน','เทพเจ้าแห่งวินัย'];
+function gain(n,msg){
+  const before=lvlOf(S.xp);
+  S.xp=Math.max(0,S.xp+n);save();
+  if(n>0)toast(`+${n} XP ${msg||''}`);
+  const after=lvlOf(S.xp);
+  renderXP();
+  if(after>before){
+    $('lvNum').textContent=after;
+    $('lvMsg').textContent=`ตอนนี้คุณคือ "${TITLES[Math.min(after-1,TITLES.length-1)]}" แล้ว`;
+    setTimeout(()=>{openModal('mLevel');confetti(160);buzz([30,40,30,40,80])},400);
+  }
+}
+function renderXP(){
+  const l=lvlOf(S.xp),a=xpFor(l),b=xpFor(l+1);
+  $('lvlTxt').textContent='LV '+l;
+  $('xpBar').style.width=((S.xp-a)/(b-a)*100)+'%';
+  $('xpTxt').textContent=`${S.xp-a}/${b-a} XP`;
+}
+
+/* ============ toast & confetti ============ */
+let tt;function toast(t){const el=$('toast');el.textContent=t;el.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('on'),1600)}
+const cv=$('fx'),cx=cv.getContext('2d');let parts=[],raf;
+function confetti(n=90,x=innerWidth/2,y=innerHeight/3){
+  cv.width=innerWidth*devicePixelRatio;cv.height=innerHeight*devicePixelRatio;cx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  const cols=['#b46bff','#ff4fa3','#35e0c2','#ffc94a','#4fa8ff'];
+  for(let i=0;i<n;i++)parts.push({x,y,vx:(Math.random()-.5)*14,vy:Math.random()*-14-4,r:Math.random()*6+3,c:cols[i%5],a:Math.random()*6,s:Math.random()*.3-.15,life:1});
+  cancelAnimationFrame(raf);(function f(){cx.clearRect(0,0,innerWidth,innerHeight);
+    parts.forEach(p=>{p.vy+=.45;p.vx*=.98;p.x+=p.vx;p.y+=p.vy;p.a+=p.s;p.life-=.008;
+      cx.save();cx.globalAlpha=Math.max(p.life,0);cx.translate(p.x,p.y);cx.rotate(p.a);cx.fillStyle=p.c;cx.fillRect(-p.r/2,-p.r/4,p.r,p.r/2);cx.restore()});
+    parts=parts.filter(p=>p.life>0&&p.y<innerHeight+40);if(parts.length)raf=requestAnimationFrame(f);else cx.clearRect(0,0,innerWidth,innerHeight)})();
+}
+
+/* ============ ring helper ============ */
+function ring(size,stroke,pct,grad,inner){
+  const r=(size-stroke)/2,c=2*Math.PI*r;
+  return `<svg width="${size}" height="${size}" style="transform:rotate(-90deg)">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="${stroke}"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="url(#${grad})" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c*(1-Math.min(pct,1))}"/>
+  </svg>${inner?`<div class="lbl">${inner}</div>`:''}`;
+}
+
+/* ============ TODAY ============ */
+const T=()=>dk();
+const MOODS=['😫','😕','😐','🙂','🤩'];
+const QUOTES=['วินัยคือการเลือกสิ่งที่อยากได้มากที่สุด แทนสิ่งที่อยากได้ตอนนี้','ไม่ต้องเก่งตั้งแต่เริ่ม แต่ต้องเริ่มถึงจะเก่ง','ดีขึ้นวันละ 1% หนึ่งปีผ่านไปคุณจะเป็นอีกคน','เปรียบเทียบกับตัวเองเมื่อวาน ไม่ใช่คนอื่นในวันนี้','ความขี้เกียจคือการกู้หนี้จากตัวเองในอนาคต','ทำให้เสร็จ ดีกว่าทำให้เพอร์เฟกต์','พักได้ แต่อย่าเลิก','ถ้ามันง่าย ทุกคนก็ทำไปแล้ว','อนาคตของคุณถูกสร้างจากสิ่งที่ทำวันนี้ ไม่ใช่พรุ่งนี้','คนที่ชนะ คือคนที่ไม่ยอมหยุด','ช้าไม่เป็นไร ขอแค่อย่าถอยหลัง','โฟกัสสิ่งที่ควบคุมได้ ที่เหลือปล่อยมันไป'];
+const CHALS=['ส่งข้อความขอบคุณใครสักคน 💌','เดิน 5,000 ก้าว 🚶','ไม่ดื่มน้ำหวาน/ชานมทั้งวัน 🧋❌','จัดโต๊ะ/ห้องให้เรียบร้อย 10 นาที 🧹','อ่านหนังสือ 10 หน้า 📖','เขียน 3 เรื่องที่รู้สึกขอบคุณวันนี้ ✍️','เรียนคำศัพท์อังกฤษใหม่ 5 คำ 🇬🇧','ยืดเส้นยืดสาย 10 นาที 🧘','เข้านอนก่อนเที่ยงคืน 😴','ชมใครสักคนแบบจริงใจ 🌟','กินผัก/ผลไม้ 1 มื้อ 🥗','ลบแอป/ไฟล์ที่ไม่ใช้ในมือถือ 🗑️','ฟังพอดแคสต์ความรู้ 1 ตอน 🎧','วางมือถือตอนกินข้าว 1 มื้อ 🍚','ออกไปเดินรับแสงแดด 15 นาที ☀️','ช่วยงานบ้าน 1 อย่าง 🏠','วิดพื้นหรือสควอท 20 ครั้ง 💪','ไม่เปิดโซเชียลจนถึงเที่ยง 📵','โทรหาครอบครัวหรือเพื่อนเก่า 📞','เรียนสกิลใหม่จากคลิป 15 นาที 🎓','วางแผนพรุ่งนี้ 3 อย่างก่อนนอน 🗒️'];
+const dayIdx=()=>Math.floor(new Date(T()+'T00:00').getTime()/864e5);
+
+function dayScore(d){
+  const h=S.habits.length?S.habits.filter(x=>x.done[d]).length/S.habits.length:0;
+  const w=Math.min((S.water[d]||0)/8,1),m=S.moods[d]?1:0,f=Math.min((S.focus[d]||0),1),c=S.chal[d]?1:0;
+  return Math.round((h*.4+w*.2+m*.1+f*.15+c*.15)*100);
+}
+function streak(){ // consecutive days with score>=50, today counts if already >=50
+  let n=0,d=new Date();if(dayScore(dk(d))<50)d=addDays(d,-1);
+  while(dayScore(dk(d))>=50){n++;d=addDays(d,-1)}return n;
+}
+function renderToday(){
+  const now=new Date(),h=now.getHours();
+  const g=h<5?'ดึกแล้วนะ':h<12?'อรุณสวัสดิ์':h<17?'บ่ายนี้สู้ๆ':h<21?'เย็นนี้เป็นไง':'ใกล้นอนแล้ว';
+  const ic=h<5?'🌙':h<12?'☀️':h<17?'⚡':h<21?'🌆':'🌙';
+  $('hello').innerHTML=`${g}, <span class="gt">${esc(S.name||'เพื่อน')}</span> ${ic}`;
+  $('dateTxt').textContent=now.toLocaleDateString('th-TH',{weekday:'long',day:'numeric',month:'long'});
+  $('streakPill').textContent='🔥 '+streak()+' วัน';
+  // week
+  const wd=['อา','จ','อ','พ','พฤ','ศ','ส'];let w='';
+  for(let i=-6;i<=0;i++){const d=addDays(now,i),k=dk(d),s=dayScore(k);
+    w+=`<div class="day ${i===0?'today':''}">${wd[d.getDay()]}<br><b style="font-weight:600">${d.getDate()}</b>
+    <svg width="26" height="26" style="transform:rotate(-90deg)"><circle cx="13" cy="13" r="10" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="4"/>
+    <circle cx="13" cy="13" r="10" fill="none" stroke="url(#rg)" stroke-width="4" stroke-linecap="round" stroke-dasharray="62.8" stroke-dashoffset="${62.8*(1-s/100)}"/></svg></div>`}
+  $('week').innerHTML=w;
+  // score
+  const t=T(),sc=dayScore(t);
+  $('scoreRing').innerHTML=ring(110,12,sc/100,'rg',`<div><b>${sc}</b><div class="xs mute">/100</div></div>`);
+  $('scoreMsg').textContent=sc>=90?'วันนี้คือที่สุด! ตัวตึงของจริง 🏆':sc>=70?'ดีมาก อีกนิดเดียวก็เต็ม 💪':sc>=50?'ผ่านเกณฑ์ streak แล้ว ไปต่อ!':sc>0?'เริ่มแล้ว ดีกว่าไม่เริ่ม ✨':'ยังไม่ได้เริ่มเลย ลุยกัน!';
+  const hd=S.habits.filter(x=>x.done[t]).length;
+  $('scoreChips').innerHTML=`<span class="pill">✅ ${hd}/${S.habits.length}</span><span class="pill">💧 ${S.water[t]||0}</span><span class="pill">⏱️ ${S.focus[t]||0}</span>`;
+  // mood
+  $('moods').innerHTML=MOODS.map((m,i)=>`<button class="mood tap ${S.moods[t]===i+1?'on':''}" data-m="${i+1}">${m}</button>`).join('');
+  // water
+  const wn=S.water[t]||0;$('waterN').textContent=wn;
+  $('glasses').innerHTML=Array.from({length:8},(_,i)=>`<button class="gl tap ${i<wn?'on':''}" data-w="${i+1}" aria-label="แก้วที่ ${i+1}"></button>`).join('');
+  // challenge & quote
+  $('chalTxt').textContent=CHALS[dayIdx()%CHALS.length];
+  $('chalBtn').innerHTML=S.chal[t]?`<span class="done-tag">✓ ทำสำเร็จแล้ว เก่งมาก!</span>`:`<button class="btn tap" id="chalDo">ทำแล้ว!</button>`;
+  $('quote').textContent='“'+QUOTES[dayIdx()%QUOTES.length]+'”';
+}
+$('moods').onclick=e=>{const b=e.target.closest('[data-m]');if(!b)return;const t=T(),first=!S.moods[t];S.moods[t]=+b.dataset.m;save();buzz();if(first)gain(5,'บันทึกมู้ด');renderToday()};
+$('glasses').onclick=e=>{const b=e.target.closest('[data-w]');if(!b)return;const t=T(),cur=S.water[t]||0,n=+b.dataset.w;
+  const next=n===cur?n-1:n;S.water[t]=next;save();buzz();
+  if(next>cur)gain(2*(next-cur),'💧');else{S.xp=Math.max(0,S.xp-2*(cur-next));save();renderXP()}
+  if(next===8&&cur<8){confetti(60);toast('ดื่มน้ำครบ 8 แก้ว! 💧🎉')}renderToday()};
+$('chalBtn').onclick=e=>{if(!e.target.closest('#chalDo'))return;S.chal[T()]=true;save();buzz([20,30,20]);confetti(110);gain(15,'ภารกิจสำเร็จ');renderToday()};
+
+/* ============ HABITS ============ */
+let editing=false;
+function hStreak(h){let n=0,d=new Date();if(!h.done[dk(d)])d=addDays(d,-1);while(h.done[dk(d)]){n++;d=addDays(d,-1)}return n}
+function renderHabits(){
+  const t=T();
+  $('habitList').className=editing?'editing':'';
+  $('habitList').innerHTML=S.habits.length?S.habits.map(h=>{const s=hStreak(h);return `
+    <div class="habit ${h.done[t]?'ok':''}">
+      <div class="em">${esc(h.emoji||'✨')}</div>
+      <div class="nm"><b>${esc(h.name)}</b><span class="xs mute">${s?`🔥 ${s} วันติด`:'เริ่มวันนี้เลย'}</span></div>
+      <button class="chk tap" data-h="${h.id}" aria-label="ทำแล้ว"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg></button>
+      <button class="del tap" data-d="${h.id}" aria-label="ลบ">✕</button>
+    </div>`}).join(''):`<div class="card mute" style="text-align:center">ยังไม่มีนิสัย กด "แก้ไข" เพื่อเพิ่ม</div>`;
+  $('addRow').style.display=editing?'flex':'none';
+  $('editBtn').textContent=editing?'เสร็จ':'แก้ไข';
+  // heatmap (28 days, aligned so last cell = today)
+  let html='',sum=0,cnt=0;
+  for(let i=27;i>=0;i--){const k=dk(addDays(new Date(),-i)),m=S.moods[k];
+    if(m){sum+=m;cnt++}
+    const bg=m?['#3a1d4a','#5a2a6e','#6b4bb0','#3f8fd6','#35e0c2'][m-1]:'';
+    html+=`<i style="${bg?`background:${bg}`:''}${i===0?';outline:2px solid var(--b)':''}">${m?MOODS[m-1]:''}</i>`}
+  $('heat').innerHTML=html;
+  $('moodAvg').textContent=cnt?`เฉลี่ย ${MOODS[Math.round(sum/cnt)-1]}`:'';
+}
+$('habitList').onclick=e=>{
+  const c=e.target.closest('[data-h]'),d=e.target.closest('[data-d]'),t=T();
+  if(c){const h=S.habits.find(x=>x.id==c.dataset.h);
+    if(h.done[t]){delete h.done[t];S.xp=Math.max(0,S.xp-10);save();renderXP();buzz(8)}
+    else{h.done[t]=true;save();buzz([15,30,15]);gain(10,h.emoji);
+      const r=c.getBoundingClientRect();confetti(30,r.left+r.width/2,r.top);
+      if(S.habits.every(x=>x.done[t])){setTimeout(()=>{confetti(180);toast('ครบทุกนิสัยวันนี้! 🏆')},350)}}
+    renderHabits()}
+  if(d&&confirm('ลบนิสัยนี้?')){S.habits=S.habits.filter(x=>x.id!=d.dataset.d);save();renderHabits()}
+};
+$('editBtn').onclick=()=>{editing=!editing;renderHabits()};
+$('hAdd').onclick=()=>{const n=$('hName').value.trim();if(!n)return;
+  S.habits.push({id:Date.now(),emoji:$('hEmoji').value.trim()||'✨',name:n,done:{}});save();
+  $('hName').value='';$('hEmoji').value='';buzz();toast('เพิ่มนิสัยใหม่แล้ว ✨');renderHabits()};
+
+/* ============ FOCUS ============ */
+const MODES={f15:['โฟกัส 15',15],f25:['โฟกัส 25',25],f50:['ดีพ 50',50],brk:['พัก 5',5]};
+let fm=localStorage.getItem('vibe.fm')||'f25',fEnd=+localStorage.getItem('vibe.fend')||0,fLeft=+localStorage.getItem('vibe.fleft')||MODES[fm][1]*60,fTick;
+function fSave(){localStorage.setItem('vibe.fm',fm);localStorage.setItem('vibe.fend',fEnd);localStorage.setItem('vibe.fleft',fLeft)}
+function fRemain(){return fEnd?Math.max(0,Math.round((fEnd-Date.now())/1000)):fLeft}
+function renderFocus(){
+  const rem=fRemain(),tot=MODES[fm][1]*60,mm=String(Math.floor(rem/60)).padStart(2,'0'),ss=String(rem%60).padStart(2,'0');
+  $('fseg').innerHTML=Object.entries(MODES).map(([k,v])=>`<button class="${k===fm?'on':''}" data-f="${k}">${v[0]}</button>`).join('');
+  $('fring').innerHTML=ring(260,16,1-rem/tot,'fg',`<div><div class="ftime">${mm}:${ss}</div><div class="mute s">${fEnd?(fm==='brk'?'พักผ่อนสบายๆ ☕':'กำลังโฟกัส... 🧠'):'พร้อมแล้วกดเลย'}</div></div>`);
+  $('fPlay').innerHTML=fEnd?'<svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><rect x="6" y="5" width="4" height="14" rx="1.5"/><rect x="14" y="5" width="4" height="14" rx="1.5"/></svg>':'<svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>';
+  $('fwrap').classList.toggle('running',!!fEnd);
+  $('fToday').textContent=S.focus[T()]||0;$('fTotal').textContent=S.focusMin||0;
+  document.title=fEnd?`${mm}:${ss} · VIBE`:'VIBE — ชีวิตดีขึ้นวันละนิด';
+}
+function beep(){try{const a=new (window.AudioContext||window.webkitAudioContext)();[0,.18,.36].forEach((t,i)=>{const o=a.createOscillator(),g=a.createGain();o.frequency.value=[660,880,1320][i];o.connect(g);g.connect(a.destination);g.gain.setValueAtTime(.2,a.currentTime+t);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+t+.35);o.start(a.currentTime+t);o.stop(a.currentTime+t+.4)})}catch(e){}}
+function fDone(){
+  const was=fm;fEnd=0;clearInterval(fTick);beep();buzz([200,100,200]);
+  if(was!=='brk'){const t=T();S.focus[t]=(S.focus[t]||0)+1;S.focusMin=(S.focusMin||0)+MODES[was][1];save();confetti(140);gain(20,'โฟกัสสำเร็จ 🧠');fm='brk'}
+  else{toast('หมดเวลาพัก กลับมาลุยต่อ! 💪');fm='f25'}
+  fLeft=MODES[fm][1]*60;fSave();renderFocus();renderToday();
+}
+function fRun(){clearInterval(fTick);fTick=setInterval(()=>{if(fRemain()<=0)fDone();else renderFocus()},250)}
+$('fPlay').onclick=()=>{buzz();if(fEnd){fLeft=fRemain();fEnd=0;clearInterval(fTick)}else{fEnd=Date.now()+fRemain()*1000;fRun()}fSave();renderFocus()};
+$('fReset').onclick=()=>{fEnd=0;clearInterval(fTick);fLeft=MODES[fm][1]*60;fSave();buzz();renderFocus()};
+$('fSkip').onclick=()=>{if(!fEnd&&fLeft===MODES[fm][1]*60){fm=fm==='brk'?'f25':'brk';fLeft=MODES[fm][1]*60;fSave();renderFocus();return}
+  if(confirm(fm==='brk'?'ข้ามการพัก?':'ข้ามรอบนี้? (จะไม่ได้ XP)')){fEnd=0;clearInterval(fTick);fm=fm==='brk'?'f25':'brk';fLeft=MODES[fm][1]*60;fSave();renderFocus()}};
+$('fseg').onclick=e=>{const b=e.target.closest('[data-f]');if(!b)return;if(fEnd&&!confirm('เปลี่ยนโหมดจะรีเซ็ตเวลา ตกลง?'))return;
+  fm=b.dataset.f;fEnd=0;clearInterval(fTick);fLeft=MODES[fm][1]*60;fSave();buzz();renderFocus()};
+if(fEnd){if(fRemain()<=0)setTimeout(fDone,300);else fRun()}
+
+/* ============ MONEY ============ */
+const CATS=[['🍜','กิน'],['🧋','ชานม/คาเฟ่'],['🚌','เดินทาง'],['🎮','เกม/บันเทิง'],['🛍️','ช้อปปิ้ง'],['📦','อื่นๆ']];
+let cat=0;
+function renderMoney(){
+  const t=T(),today=S.spend.filter(x=>x.date===t),sum=today.reduce((a,b)=>a+b.amt,0),pct=S.budget?sum/S.budget:0;
+  $('budgetBtn').textContent=`งบ ${baht(S.budget)}/วัน`;
+  $('spentToday').textContent=baht(sum);
+  $('mBar').style.width=Math.min(pct*100,100)+'%';
+  $('mBar').style.background=pct>1?'linear-gradient(90deg,#ff6b6b,#ff4f8b)':pct>.75?'linear-gradient(90deg,#ffc94a,#ff9d4a)':'linear-gradient(90deg,#35e0c2,#4fa8ff)';
+  $('mLeft').innerHTML=pct>1?`<span style="color:#ff6b8a">เกินงบไป ${baht(sum-S.budget)} แล้วนะ 💸</span>`:`เหลือใช้ได้อีก ${baht(S.budget-sum)}`;
+  $('cats').innerHTML=CATS.map((c,i)=>`<button class="cat tap ${i===cat?'on':''}" data-c="${i}"><span>${c[0]}</span>${c[1]}</button>`).join('');
+  // bars
+  const days=[...Array(7)].map((_,i)=>{const d=addDays(new Date(),i-6),k=dk(d);return{d,v:S.spend.filter(x=>x.date===k).reduce((a,b)=>a+b.amt,0)}});
+  const mx=Math.max(S.budget,...days.map(x=>x.v),1);
+  $('bars').innerHTML=days.map(x=>`<div class="${x.v>S.budget?'over':''}"><span class="xs mute">${x.v?Math.round(x.v):''}</span><i style="height:${x.v/mx*80}%"></i><span class="xs mute">${x.d.toLocaleDateString('th-TH',{weekday:'narrow'})}</span></div>`).join('');
+  $('weekSum').textContent='รวม '+baht(days.reduce((a,b)=>a+b.v,0));
+  $('txList').innerHTML=today.length?today.slice().reverse().map(x=>`<div class="tx"><span class="e">${CATS[x.cat][0]}</span><div style="flex:1"><div>${esc(x.note||CATS[x.cat][1])}</div><div class="xs mute">${new Date(x.ts).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</div></div><b style="font-weight:600">${baht(x.amt)}</b><button class="x tap" data-x="${x.id}">✕</button></div>`).join(''):'<div class="mute s" style="padding:8px 0">ยังไม่มีรายจ่ายวันนี้ 👌</div>';
+}
+$('cats').onclick=e=>{const b=e.target.closest('[data-c]');if(!b)return;cat=+b.dataset.c;buzz(8);renderMoney()};
+$('mAdd').onclick=()=>{const a=parseFloat($('mAmt').value);if(!(a>0)){toast('ใส่จำนวนเงินก่อนน้า');return}
+  S.spend.push({id:Date.now(),amt:a,cat,note:$('mNote').value.trim(),date:T(),ts:Date.now()});save();
+  $('mAmt').value='';$('mNote').value='';$('mAmt').blur();buzz();toast('บันทึกแล้ว '+baht(a));renderMoney()};
+$('txList').onclick=e=>{const b=e.target.closest('[data-x]');if(!b)return;S.spend=S.spend.filter(x=>x.id!=b.dataset.x);save();renderMoney()};
+$('budgetBtn').onclick=()=>{$('budgetIn').value=S.budget;openModal('mBudget')};
+$('budgetGo').onclick=()=>{const v=parseFloat($('budgetIn').value);if(v>0){S.budget=v;save()}closeModal('mBudget');renderMoney()};
+
+/* ============ nav / modals ============ */
+function openModal(id){$(id).classList.add('on')}
+function closeModal(id){$(id).classList.remove('on')}
+document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m&&m.id!=='mName')closeModal(m.id)}));
+const R={today:renderToday,habits:renderHabits,focus:renderFocus,money:renderMoney};
+$('nav').onclick=e=>{const b=e.target.closest('[data-p]');if(!b)return;buzz(6);
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('on',p.id==='p-'+b.dataset.p));
+  R[b.dataset.p]();};
+$('streakPill').onclick=()=>toast(`Streak = จำนวนวันติดกันที่คะแนน ≥ 50`);
+$('nameGo').onclick=()=>{const n=$('nameIn').value.trim();if(!n){$('nameIn').focus();return}S.name=n;save();closeModal('mName');confetti(120);renderToday()};
+
+/* ============ boot ============ */
+renderXP();renderToday();renderHabits();renderFocus();renderMoney();
+if(!S.name)setTimeout(()=>openModal('mName'),500);
+let lastDay=T();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){if(fEnd&&fRemain()<=0)fDone();if(T()!==lastDay){lastDay=T();renderToday();renderHabits();renderMoney()}}});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
