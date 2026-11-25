@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ล้านล้าน — 1,000,000,000,000 มันเยอะแค่ไหน?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;500;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0b10; --card:#15151d; --ink:#f3f1ea; --mute:#8d8a9b;
+    --gold:#ffcf3f; --mint:#3ff2b0; --pink:#ff5c8a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--ink);font-family:'Prompt',system-ui,sans-serif;font-weight:300;line-height:1.6}
+  section{min-height:100vh;padding:12vh 6vw;display:flex;flex-direction:column;justify-content:center;max-width:1200px;margin:0 auto}
+  h1{font-weight:800;font-size:clamp(2.4rem,9vw,7rem);line-height:1.05;letter-spacing:-.02em}
+  h2{font-weight:800;font-size:clamp(1.8rem,5vw,3.4rem);line-height:1.15;margin-bottom:1.2rem}
+  .gold{color:var(--gold)} .mint{color:var(--mint)} .pink{color:var(--pink)}
+  .mute{color:var(--mute)}
+  .big{font-size:clamp(1.1rem,2.2vw,1.5rem)}
+  .num{font-variant-numeric:tabular-nums;font-weight:800}
+  .hero-num{font-size:clamp(2rem,8.5vw,6.5rem);font-weight:800;color:var(--gold);letter-spacing:-.02em;word-break:break-all;text-shadow:0 0 60px rgba(255,207,63,.35)}
+  .scroll-hint{margin-top:3rem;animation:bob 1.6s infinite ease-in-out;color:var(--mute)}
+  @keyframes bob{50%{transform:translateY(8px)}}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin-top:1.5rem}
+  .card{background:var(--card);border:1px solid #23232e;border-radius:18px;padding:1.4rem}
+  .card .num{font-size:2rem;display:block}
+  .reveal{opacity:0;transform:translateY(30px);transition:all .8s cubic-bezier(.2,.7,.2,1)}
+  .reveal.on{opacity:1;transform:none}
+
+  /* canvas section */
+  #pxwrap{margin-top:1.5rem;background:#000;border-radius:12px;overflow:auto;border:1px solid #23232e;max-height:80vh}
+  #px{display:block;image-rendering:pixelated;width:1000px;height:1000px}
+  .controls{display:flex;flex-wrap:wrap;gap:.8rem;align-items:center;margin-top:1rem}
+  input[type=number]{background:var(--card);color:var(--ink);border:1px solid #333;border-radius:10px;padding:.6rem .8rem;font:inherit;width:11rem}
+  button{background:var(--gold);color:#111;border:0;border-radius:10px;padding:.6rem 1.1rem;font:inherit;font-weight:500;cursor:pointer;transition:transform .1s}
+  button:active{transform:scale(.96)}
+  button.ghost{background:transparent;color:var(--ink);border:1px solid #444}
+
+  /* shop */
+  #wallet{position:sticky;top:0;z-index:5;background:rgba(11,11,16,.92);backdrop-filter:blur(8px);padding:1rem 0;border-bottom:1px solid #23232e}
+  #wallet .num{font-size:clamp(1.4rem,4vw,2.4rem);color:var(--mint)}
+  .bar{height:8px;background:#222;border-radius:9px;margin-top:.5rem;overflow:hidden}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--mint),var(--gold));width:100%;transition:width .3s}
+  .item{display:flex;flex-direction:column;gap:.4rem}
+  .item .emo{font-size:2.4rem}
+  .item .price{color:var(--gold);font-weight:500}
+  .qty{display:flex;gap:.4rem;align-items:center;margin-top:auto}
+  .qty button{padding:.4rem .8rem}
+  .qty span{min-width:3.5rem;text-align:center;font-weight:500}
+  footer{text-align:center;padding:4rem 1rem;color:var(--mute);font-size:.9rem}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<section>
+  <p class="mute big">หนึ่ง ล้าน ล้าน บาท</p>
+  <div class="hero-num">1,000,000,000,000</div>
+  <p class="big" style="margin-top:1rem">สมองคนเราไม่ได้ถูกออกแบบมาให้เข้าใจตัวเลขนี้ <br>งั้นเรามาลอง <span class="gold">"รู้สึก"</span> มันกันดีกว่า</p>
+  <div class="scroll-hint">↓ เลื่อนลง</div>
+</section>
+
+<!-- TIME -->
+<section>
+  <h2 class="reveal">ถ้านับ <span class="gold">1 บาท ต่อ 1 วินาที</span><br>ไม่กิน ไม่นอน ไม่หยุด…</h2>
+  <div class="grid">
+    <div class="card reveal"><span class="mute">ครบ 1 ล้าน</span><span class="num mint">~11.6 วัน</span></div>
+    <div class="card reveal"><span class="mute">ครบ 1 พันล้าน</span><span class="num gold">~31.7 ปี</span></div>
+    <div class="card reveal"><span class="mute">ครบ 1 ล้านล้าน</span><span class="num pink">~31,700 ปี</span><span class="mute">ย้อนกลับไปตอนนั้นมนุษย์ยังวาดรูปในถ้ำอยู่เลย</span></div>
+  </div>
+  <div class="card reveal" style="margin-top:1rem">
+    <span class="mute">ตั้งแต่คุณเปิดหน้านี้ นับไปแล้ว</span>
+    <span class="num gold" id="counted">0 บาท</span>
+    <span class="mute">คิดเป็น <b id="pct" class="ink">0</b>% ของล้านล้าน</span>
+  </div>
+</section>
+
+<!-- SPEND PER DAY -->
+<section>
+  <h2 class="reveal">ใช้เงิน <span class="mint">วันละ 1 ล้านบาท</span> ทุกวัน</h2>
+  <p class="big reveal">ต้องใช้ไปเรื่อย ๆ ประมาณ <span class="num gold">2,738 ปี</span> ถึงจะหมด</p>
+  <p class="big reveal mute" style="margin-top:.6rem">ถ้าเริ่มใช้ตั้งแต่ตอนก่อตั้งกรุงโรม (~753 ปีก่อน ค.ศ.) — จะเพิ่งใช้หมดราว ๆ ปี 1985</p>
+  <div class="grid">
+    <div class="card reveal"><span class="mute">ทำงานเงินเดือน 30,000 บาท</span><span class="num gold">~2.78 ล้านปี</span><span class="mute">ถึงจะเก็บได้ล้านล้าน (ไม่ใช้เลยสักบาท)</span></div>
+    <div class="card reveal"><span class="mute">แจกคนไทย ~66 ล้านคน</span><span class="num mint">~15,000 บาท/คน</span><span class="mute">ได้คนละประมาณนี้</span></div>
+    <div class="card reveal"><span class="mute">แบงก์พันเรียงซ้อนกัน</span><span class="num pink">~100 กม.</span><span class="mute">สูงเกือบถึงขอบอวกาศ (ประมาณความหนาแบงก์ 0.1 มม.)</span></div>
+  </div>
+</section>
+
+<!-- PIXEL MAP -->
+<section>
+  <h2 class="reveal">1 พิกเซล = <span class="gold">1 ล้านบาท</span></h2>
+  <p class="big reveal">กล่องข้างล่างมี 1,000 × 1,000 = <b>1,000,000 พิกเซล</b> = ล้านล้านบาทเต็ม ๆ<br>
+  <span class="mute">ใส่รายได้ทั้งชีวิตของคุณ แล้วดูว่ามันกินที่แค่ไหน (ลองซูม/หาให้เจอ 👀)</span></p>
+  <div class="controls">
+    <label>เงินเดือน (บาท) <input type="number" id="salary" value="30000" min="0"></label>
+    <label>ทำงานกี่ปี <input type="number" id="years" value="40" min="0" style="width:6rem"></label>
+    <button id="draw">ระบายเลย</button>
+  </div>
+  <p class="big" style="margin-top:.8rem" id="lifeText"></p>
+  <div id="pxwrap"><canvas id="px" width="1000" height="1000"></canvas></div>
+</section>
+
+<!-- SHOP -->
+<section style="justify-content:flex-start">
+  <h2 class="reveal">ให้เงิน <span class="gold">ล้านล้าน</span> ไปละ ใช้ให้หมดดิ</h2>
+  <p class="mute">ราคาเป็นตัวเลขกลม ๆ ประมาณการ ไม่ใช่ราคาจริง ณ วันนี้</p>
+  <div id="wallet">
+    <span class="mute">เหลือ</span><br>
+    <span class="num" id="money">฿1,000,000,000,000</span>
+    <div class="bar"><i id="bar"></i></div>
+    <div class="controls"><button class="ghost" id="reset">รีเซ็ต</button><span class="mute" id="spentPct">ใช้ไป 0%</span></div>
+  </div>
+  <div class="grid" id="shop"></div>
+</section>
+
+<footer>ทำด้วยความงงในตัวเลข · ตัวเลขทั้งหมดเป็นการประมาณเพื่อให้เห็นภาพ</footer>
+
+<script>
+const T = 1e12;
+const fmt = n => n.toLocaleString('th-TH', {maximumFractionDigits:0});
+
+/* reveal on scroll */
+const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting && e.target.classList.add('on')), {threshold:.2});
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+/* live counter: 1 baht/sec */
+const t0 = performance.now();
+setInterval(() => {
+  const s = Math.floor((performance.now() - t0) / 1000);
+  document.getElementById('counted').textContent = fmt(s) + ' บาท';
+  document.getElementById('pct').textContent = (s / T * 100).toExponential(2);
+}, 250);
+
+/* pixel map */
+const cv = document.getElementById('px'), ctx = cv.getContext('2d');
+function drawMap(){
+  const sal = +document.getElementById('salary').value || 0;
+  const yrs = +document.getElementById('years').value || 0;
+  const life = sal * 12 * yrs;
+  const px = life / 1e6;
+  ctx.fillStyle = '#1b1b26'; ctx.fillRect(0,0,1000,1000);
+  // faint grid every 100px (= 1 แสนล้าน)
+  ctx.strokeStyle = '#2a2a38'; ctx.lineWidth = 1;
+  for(let i=100;i<1000;i+=100){ctx.beginPath();ctx.moveTo(i+.5,0);ctx.lineTo(i+.5,1000);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i+.5);ctx.lineTo(1000,i+.5);ctx.stroke();}
+  const full = Math.floor(px), frac = px - full;
+  ctx.fillStyle = '#ff5c8a';
+  for(let i=0;i<Math.min(full,1e6);i++) ctx.fillRect(i%1000, Math.floor(i/1000), 1, 1);
+  if(frac>0 && full<1e6){ctx.globalAlpha = Math.max(frac,.25); ctx.fillRect(full%1000, Math.floor(full/1000),1,1); ctx.globalAlpha=1;}
+  // marker ring so you can find it
+  if(px < 2000){ctx.strokeStyle='#ffcf3f';ctx.lineWidth=2;ctx.beginPath();ctx.arc(Math.min(px,1000)/2+1,1,16,0,Math.PI*2);ctx.stroke();}
+  const share = life / T * 100;
+  document.getElementById('lifeText').innerHTML =
+    `รายได้ทั้งชีวิต <b class="gold">฿${fmt(life)}</b> = <b class="pink">${px.toLocaleString('th-TH',{maximumFractionDigits:2})} พิกเซล</b> ` +
+    `(${share < 0.01 ? share.toExponential(2) : share.toFixed(2)}% ของล้านล้าน) — มุมซ้ายบนเลย มองเห็นป่ะ?` +
+    (life>0 ? `<br><span class="mute">ต้องทำงานแบบนี้ ${fmt(T/life)} ชาติ ถึงจะเต็มกล่อง</span>` : '');
+}
+document.getElementById('draw').onclick = drawMap;
+drawMap();
+
+/* shop */
+const items = [
+  ['🍜','ก๋วยเตี๋ยว 1 ชาม',60],
+  ['📱','มือถือเรือธง',50000],
+  ['🏍️','มอเตอร์ไซค์',60000],
+  ['🚗','รถเก๋ง',1000000],
+  ['🏢','คอนโดกลางเมือง',5000000],
+  ['🏎️','ซูเปอร์คาร์',30000000],
+  ['🏡','บ้านหรูริมทะเล',200000000],
+  ['🛥️','ซูเปอร์ยอชต์',5000000000],
+  ['✈️','เครื่องบินส่วนตัว',3000000000],
+  ['⚽','ซื้อทีมฟุตบอลระดับท็อป',100000000000],
+  ['🚀','ส่งยานไปดวงจันทร์ 1 ลำ',30000000000],
+  ['🏥','สร้างโรงพยาบาลใหญ่',5000000000],
+];
+let cart = items.map(()=>0);
+const shop = document.getElementById('shop');
+items.forEach(([e,n,p],i)=>{
+  const d = document.createElement('div'); d.className='card item';
+  d.innerHTML = `<span class="emo">${e}</span><b>${n}</b><span class="price">฿${fmt(p)}</span>
+    <div class="qty"><button class="ghost" data-i="${i}" data-d="-1">ขาย</button><span id="q${i}">0</span><button data-i="${i}" data-d="1">ซื้อ</button></div>`;
+  shop.appendChild(d);
+});
+function spent(){return cart.reduce((s,q,i)=>s+q*items[i][2],0);}
+function render(){
+  const left = T - spent();
+  document.getElementById('money').textContent = '฿' + fmt(left);
+  document.getElementById('bar').style.width = (left/T*100)+'%';
+  document.getElementById('spentPct').textContent = 'ใช้ไป ' + (spent()/T*100).toFixed(4) + '%';
+  cart.forEach((q,i)=>document.getElementById('q'+i).textContent = fmt(q));
+}
+let holdTimer;
+function act(btn){
+  const i=+btn.dataset.i, d=+btn.dataset.d;
+  if(d>0 && spent()+items[i][2] > T) return;
+  if(d<0 && cart[i]===0) return;
+  cart[i]+=d; render();
+}
+shop.addEventListener('pointerdown', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  act(b);
+  let speed = 250, n = 0;
+  const loop = () => { holdTimer = setTimeout(()=>{ for(let k=0;k<Math.min(1+n*n,10000);k++) act(b); n++; loop(); }, speed = Math.max(40, speed*.85)); };
+  loop();
+});
+['pointerup','pointerleave','pointercancel'].forEach(ev=>shop.addEventListener(ev,()=>clearTimeout(holdTimer)));
+document.getElementById('reset').onclick = ()=>{cart = cart.map(()=>0); render();};
+render();
+</script>
+</body>
+</html>
